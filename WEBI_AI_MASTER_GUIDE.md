@@ -2170,3 +2170,797 @@ RunningSum([Property Damage Amount])
 
 ---
 
+# PART 4: POLICE DATA PATTERNS
+
+**This is a specialized section for handling a common challenge in police data: multiple entries per ID.**
+
+## The Problem
+
+Police databases often contain multiple records for the same entity (Case ID, Incident ID, Person ID, etc.):
+- Multiple updates/versions of the same case
+- Draft vs. final reports
+- Amended reports
+- Data quality varies across records
+- Different timestamps (created, modified, submitted)
+
+**Goal:** Filter to the single "best" record per ID based on various criteria.
+
+---
+
+## 4.1 Filtering Multiple Entries per ID
+
+### Understanding the Challenge
+
+**Scenario:** You have a Case table with multiple records per Case ID:
+
+| Case ID | Report Date | Modified Date | Status | Priority | Notes | Evidence Count |
+|---------|-------------|---------------|--------|----------|-------|----------------|
+| C-2024-001 | 2024-01-15 | 2024-01-15 | Draft | 5 | Initial | NULL |
+| C-2024-001 | 2024-01-16 | 2024-01-20 | Final | 7 | Complete | 3 |
+| C-2024-001 | 2024-01-17 | 2024-01-25 | Amended | 7 | Updated | 5 |
+| C-2024-002 | 2024-01-18 | 2024-01-18 | Final | 3 | Standard | 1 |
+
+**Without filtering, aggregations give incorrect results:**
+- `Count([Case ID])` returns 4, not 2 unique cases
+- `Sum([Evidence Count])` may double-count
+
+**Solution Approach:**
+1. Identify what makes a record the "best" (latest date, most complete, highest priority, etc.)
+2. Create a flag variable to mark the "best" record per ID
+3. Filter the report or use Where clauses to show only flagged records
+
+---
+
+## 4.2 Getting Latest/Most Recent Record
+
+### Pattern 1: Latest by Single Date Field
+
+**Goal:** Get the most recent record per Case ID based on Report Date.
+
+**Step 1: Find the maximum date per Case ID**
+
+```webi
+// Variable: var_Max_Report_Date_Per_Case
+// Qualification: Detail or Measure
+Max([Report Date]) In ([Case ID])
+```
+
+**Step 2: Flag the latest record**
+
+```webi
+// Variable: var_Is_Latest_Report
+// Qualification: Dimension
+If [Report Date] = Max([Report Date]) In ([Case ID]) Then "Yes" Else "No"
+```
+
+**Step 3: Use in report**
+
+Apply report filter: `[var_Is_Latest_Report] = "Yes"`
+
+Or use in aggregations:
+```webi
+// Count only latest records
+Count([Case ID]) Where ([var_Is_Latest_Report] = "Yes")
+```
+
+---
+
+### Pattern 2: Latest by Multiple Date Fields (Priority Order)
+
+**Goal:** Use Modified Date if available, otherwise Report Date.
+
+```webi
+// Variable: var_Effective_Date
+// Qualification: Detail
+If Not IsNull([Modified Date]) Then [Modified Date] Else [Report Date]
+```
+
+```webi
+// Variable: var_Max_Effective_Date_Per_Case
+Max([var_Effective_Date]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Latest_Version
+// Qualification: Dimension
+If [var_Effective_Date] = Max([var_Effective_Date]) In ([Case ID]) Then "Yes" Else "No"
+```
+
+---
+
+### Pattern 3: Latest by Timestamp
+
+**Goal:** When you have date + time fields.
+
+```webi
+// Variable: var_Full_Timestamp
+// Qualification: Detail
+// Combine date and time for precise comparison
+[Report Date] + ([Report Time] / 86400)
+// Note: Time stored as seconds, divided by 86400 (seconds per day)
+```
+
+```webi
+// Variable: var_Latest_Timestamp_Per_Case
+Max([var_Full_Timestamp]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Latest_By_Timestamp
+If [var_Full_Timestamp] = Max([var_Full_Timestamp]) In ([Case ID]) Then "Yes" Else "No"
+```
+
+---
+
+### Complete Example: Latest Case Record
+
+**Scenario:** Case table with multiple versions per case. Get the latest version only.
+
+```webi
+// Step 1: Create helper variable for latest date per case
+// Variable: var_Latest_Case_Date
+// Qualification: Detail
+Max([Modified Date]) In ([Case ID])
+
+// Step 2: Flag the latest record
+// Variable: var_Is_Latest_Case_Record
+// Qualification: Dimension
+If [Modified Date] = [var_Latest_Case_Date] Then "Latest" Else "Historical"
+
+// Step 3: Filter report
+// Report Filter: [var_Is_Latest_Case_Record] = "Latest"
+```
+
+**Result:** Only one record per Case ID (the most recent).
+
+---
+
+## 4.3 Getting Most Complete Record
+
+### Pattern 1: Count Non-Null Fields
+
+**Goal:** Select the record with the fewest null/missing values.
+
+```webi
+// Variable: var_Completeness_Score
+// Qualification: Measure
+// Count how many key fields are populated
+(If Not IsNull([Field1]) Then 1 Else 0) +
+(If Not IsNull([Field2]) Then 1 Else 0) +
+(If Not IsNull([Field3]) Then 1 Else 0) +
+(If Not IsNull([Field4]) Then 1 Else 0) +
+(If Not IsNull([Field5]) Then 1 Else 0)
+```
+
+**Simpler version for specific fields:**
+
+```webi
+// Variable: var_Data_Completeness_Score
+// Count populated critical fields
+(If Not IsNull([Suspect Name]) Then 1 Else 0) +
+(If Not IsNull([Location]) Then 1 Else 0) +
+(If Not IsNull([Evidence Count]) And [Evidence Count] > 0 Then 1 Else 0) +
+(If Not IsNull([Witness Count]) And [Witness Count] > 0 Then 1 Else 0) +
+(If Not IsNull([Officer Assigned]) Then 1 Else 0)
+```
+
+```webi
+// Variable: var_Max_Completeness_Per_Case
+Max([var_Data_Completeness_Score]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Most_Complete
+// Qualification: Dimension
+If [var_Data_Completeness_Score] = Max([var_Data_Completeness_Score]) In ([Case ID])
+Then "Most Complete"
+Else "Incomplete"
+```
+
+---
+
+### Pattern 2: Weighted Completeness Score
+
+**Goal:** Some fields are more important than others.
+
+```webi
+// Variable: var_Weighted_Completeness
+// Higher weight for critical fields
+(If Not IsNull([Suspect Name]) Then 5 Else 0) +           // Critical
+(If Not IsNull([Location]) Then 5 Else 0) +               // Critical
+(If Not IsNull([Crime Type]) Then 3 Else 0) +             // Important
+(If Not IsNull([Evidence Count]) Then 3 Else 0) +         // Important
+(If Not IsNull([Notes]) And Length([Notes]) > 20 Then 2 Else 0) +  // Nice to have
+(If Not IsNull([Reporting Officer]) Then 1 Else 0)        // Basic
+```
+
+```webi
+// Variable: var_Max_Weighted_Score_Per_Case
+Max([var_Weighted_Completeness]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Most_Complete_Weighted
+If [var_Weighted_Completeness] = Max([var_Weighted_Completeness]) In ([Case ID])
+Then "Best Record"
+Else "Lower Quality"
+```
+
+---
+
+### Pattern 3: String Length as Quality Indicator
+
+**Goal:** Longer descriptions usually indicate more detail.
+
+```webi
+// Variable: var_Description_Quality
+// Longer case notes = better quality
+Length([Case Notes])
+```
+
+```webi
+// Variable: var_Best_Description_Per_Case
+Max(Length([Case Notes])) In ([Case ID])
+```
+
+```webi
+// Variable: var_Has_Best_Description
+If Length([Case Notes]) = Max(Length([Case Notes])) In ([Case ID])
+Then "Best"
+Else "Other"
+```
+
+---
+
+## 4.4 Getting Last Modified Record
+
+### Pattern 1: Simple Last Modified
+
+```webi
+// Variable: var_Latest_Modified_Date_Per_Case
+Max([Modified Date]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Last_Modified
+If [Modified Date] = Max([Modified Date]) In ([Case ID]) Then "Yes" Else "No"
+```
+
+---
+
+### Pattern 2: Last Modified with User Tracking
+
+**Goal:** Track WHO made the last modification.
+
+```webi
+// Variable: var_Latest_Modified_Date
+Max([Modified Date]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Last_Modifier
+// Get the user who made the last modification
+If [Modified Date] = Max([Modified Date]) In ([Case ID]) Then [Modified By User] Else ""
+```
+
+---
+
+### Pattern 3: Modified Date with Status Check
+
+**Goal:** Get latest FINALIZED record (ignore drafts).
+
+```webi
+// Variable: var_Latest_Final_Date
+Max([Modified Date]) Where ([Status] = "Final") In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Latest_Final_Record
+If [Status] = "Final" And [Modified Date] = Max([Modified Date]) Where ([Status] = "Final") In ([Case ID])
+Then "Latest Final"
+Else "Other"
+```
+
+---
+
+## 4.5 Priority-Based Record Selection
+
+### Pattern 1: Status Priority
+
+**Goal:** Prefer certain statuses over others (Final > Amended > Draft).
+
+```webi
+// Variable: var_Status_Priority
+// Assign numeric priority to status values
+If [Status] = "Amended" Then 3
+ElseIf [Status] = "Final" Then 2
+ElseIf [Status] = "Draft" Then 1
+Else 0
+```
+
+```webi
+// Variable: var_Highest_Priority_Per_Case
+Max([var_Status_Priority]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Highest_Priority_Status
+If [var_Status_Priority] = Max([var_Status_Priority]) In ([Case ID])
+Then "Best Status"
+Else "Lower Priority Status"
+```
+
+---
+
+### Pattern 2: Multi-Criteria Priority
+
+**Goal:** Use multiple criteria in priority order (Status first, then date, then completeness).
+
+```webi
+// Variable: var_Composite_Priority_Score
+// Higher score = better record
+// Format: SSDDDDCC (Status=2 digits, Date=4 digits offset, Completeness=2 digits)
+([var_Status_Priority] * 1000000) +
+(DaysBetween(ToDate("2020-01-01"; "yyyy-MM-dd"); [Modified Date]) * 100) +
+[var_Completeness_Score]
+```
+
+```webi
+// Variable: var_Max_Priority_Score_Per_Case
+Max([var_Composite_Priority_Score]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Best_Record
+If [var_Composite_Priority_Score] = Max([var_Composite_Priority_Score]) In ([Case ID])
+Then "Best"
+Else "Not Best"
+```
+
+**How it works:**
+- Status Priority (3) = 3,000,000 points
+- Days since 2020 (1,825 days) = 182,500 points
+- Completeness (5 fields) = 5 points
+- Total: 3,182,505
+
+This ensures Status is prioritized first, then recent date, then completeness.
+
+---
+
+### Pattern 3: Source System Priority
+
+**Goal:** Prefer records from certain source systems.
+
+```webi
+// Variable: var_Source_Priority
+If [Source System] = "RMS Primary" Then 10
+ElseIf [Source System] = "RMS Secondary" Then 5
+ElseIf [Source System] = "Manual Entry" Then 3
+ElseIf [Source System] = "Legacy Import" Then 1
+Else 0
+```
+
+```webi
+// Variable: var_Best_Source_Per_Case
+Max([var_Source_Priority]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_From_Best_Source
+If [var_Source_Priority] = Max([var_Source_Priority]) In ([Case ID])
+Then "Primary Source"
+Else "Secondary Source"
+```
+
+---
+
+## 4.6 Data Quality Scoring
+
+### Pattern 1: Comprehensive Quality Score
+
+**Goal:** Score each record on multiple quality dimensions.
+
+```webi
+// Variable: var_Data_Quality_Score
+// Qualification: Measure
+
+// Completeness (0-30 points)
+(If Not IsNull([Suspect Name]) Then 5 Else 0) +
+(If Not IsNull([Location]) Then 5 Else 0) +
+(If Not IsNull([Crime Type]) Then 5 Else 0) +
+(If Not IsNull([Date]) Then 5 Else 0) +
+(If Not IsNull([Officer]) Then 5 Else 0) +
+(If Not IsNull([Evidence Count]) And [Evidence Count] > 0 Then 5 Else 0) +
+
+// Timeliness (0-20 points)
+(If DaysBetween([Incident Date]; [Report Date]) <= 1 Then 20
+ ElseIf DaysBetween([Incident Date]; [Report Date]) <= 7 Then 10
+ ElseIf DaysBetween([Incident Date]; [Report Date]) <= 30 Then 5
+ Else 0) +
+
+// Detail Level (0-20 points)
+(If Length([Case Notes]) > 200 Then 20
+ ElseIf Length([Case Notes]) > 100 Then 10
+ ElseIf Length([Case Notes]) > 50 Then 5
+ Else 0) +
+
+// Status (0-30 points)
+(If [Status] = "Amended" Then 30
+ ElseIf [Status] = "Final" Then 25
+ ElseIf [Status] = "Submitted" Then 15
+ ElseIf [Status] = "Draft" Then 5
+ Else 0)
+
+// Maximum possible score: 100 points
+```
+
+```webi
+// Variable: var_Highest_Quality_Per_Case
+Max([var_Data_Quality_Score]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Highest_Quality
+If [var_Data_Quality_Score] = Max([var_Data_Quality_Score]) In ([Case ID])
+Then "Highest Quality"
+Else "Lower Quality"
+```
+
+```webi
+// Variable: var_Quality_Rating
+// Convert score to rating
+If [var_Data_Quality_Score] >= 80 Then "Excellent"
+ElseIf [var_Data_Quality_Score] >= 60 Then "Good"
+ElseIf [var_Data_Quality_Score] >= 40 Then "Fair"
+ElseIf [var_Data_Quality_Score] >= 20 Then "Poor"
+Else "Very Poor"
+```
+
+---
+
+### Pattern 2: Validation Flags
+
+**Goal:** Flag records with data quality issues.
+
+```webi
+// Variable: var_Has_Data_Issues
+// Qualification: Dimension
+
+If IsNull([Case Type]) Then "Missing Case Type"
+ElseIf IsNull([Location]) Then "Missing Location"
+ElseIf IsNull([Officer Assigned]) Then "Unassigned"
+ElseIf [Evidence Count] = 0 And DaysBetween([Incident Date]; CurrentDate()) > 30 Then "No Evidence After 30 Days"
+ElseIf DaysBetween([Incident Date]; [Report Date]) > 7 Then "Late Report"
+Else "No Issues"
+```
+
+```webi
+// Variable: var_Quality_Flag_Count
+// Count quality issues
+(If IsNull([Case Type]) Then 1 Else 0) +
+(If IsNull([Location]) Then 1 Else 0) +
+(If IsNull([Officer Assigned]) Then 1 Else 0) +
+(If [Evidence Count] = 0 Then 1 Else 0) +
+(If DaysBetween([Incident Date]; [Report Date]) > 7 Then 1 Else 0)
+```
+
+```webi
+// Variable: var_Fewest_Issues_Per_Case
+Min([var_Quality_Flag_Count]) In ([Case ID])
+```
+
+```webi
+// Variable: var_Is_Cleanest_Record
+If [var_Quality_Flag_Count] = Min([var_Quality_Flag_Count]) In ([Case ID])
+Then "Cleanest"
+Else "Has Issues"
+```
+
+---
+
+## 4.7 Combined Filtering Strategy
+
+### Complete Working Example: Best Record Selection
+
+**Scenario:** Case table with multiple versions. Select the single best record per case using comprehensive criteria.
+
+```webi
+// ========================================
+// STEP 1: Calculate individual criteria
+// ========================================
+
+// 1A: Status Priority
+// Variable: var_Status_Priority
+// Qualification: Measure
+If [Status] = "Amended" Then 3
+ElseIf [Status] = "Final" Then 2
+ElseIf [Status] = "Draft" Then 1
+Else 0
+
+// 1B: Data Completeness
+// Variable: var_Completeness_Count
+// Qualification: Measure
+(If Not IsNull([Suspect Name]) Then 1 Else 0) +
+(If Not IsNull([Location]) Then 1 Else 0) +
+(If Not IsNull([Evidence Count]) And [Evidence Count] > 0 Then 1 Else 0) +
+(If Not IsNull([Witness Count]) And [Witness Count] > 0 Then 1 Else 0) +
+(If Not IsNull([Case Notes]) And Length([Case Notes]) > 20 Then 1 Else 0)
+
+// 1C: Recency Score (days since base date)
+// Variable: var_Recency_Score
+// Qualification: Measure
+DaysBetween(ToDate("2020-01-01"; "yyyy-MM-dd"); [Modified Date])
+
+// ========================================
+// STEP 2: Create composite ranking score
+// ========================================
+
+// Variable: var_Record_Rank_Score
+// Qualification: Measure
+// Priority order: Status > Date > Completeness
+([var_Status_Priority] * 10000000) +
+([var_Recency_Score] * 100) +
+[var_Completeness_Count]
+
+// ========================================
+// STEP 3: Find best score per Case ID
+// ========================================
+
+// Variable: var_Best_Score_Per_Case
+// Qualification: Detail or Measure
+Max([var_Record_Rank_Score]) In ([Case ID])
+
+// ========================================
+// STEP 4: Flag the best record
+// ========================================
+
+// Variable: var_Is_Best_Record
+// Qualification: Dimension
+If [var_Record_Rank_Score] = [var_Best_Score_Per_Case] Then "BEST" Else "Other"
+
+// ========================================
+// STEP 5: Apply filter
+// ========================================
+// Report Filter: [var_Is_Best_Record] = "BEST"
+```
+
+---
+
+### Handling Ties
+
+**Problem:** Multiple records have the same "best" score.
+
+**Solution 1: Add tie-breaker**
+
+```webi
+// Variable: var_Record_Rank_With_Tiebreaker
+([var_Status_Priority] * 10000000) +
+([var_Recency_Score] * 100) +
+([var_Completeness_Count] * 10) +
+([Record ID])  // Use unique ID as final tie-breaker
+```
+
+**Solution 2: Keep all tied records**
+
+```webi
+// Variable: var_Is_Best_Or_Tied
+If [var_Record_Rank_Score] = Max([var_Record_Rank_Score]) In ([Case ID])
+Then "Keep"
+Else "Exclude"
+```
+
+**Solution 3: Prefer specific attribute in tie**
+
+```webi
+// Variable: var_Tiebreaker
+// If scores are tied, prefer records modified by supervisors
+If [var_Record_Rank_Score] = Max([var_Record_Rank_Score]) In ([Case ID]) Then
+    If [Modified By Role] = "Supervisor" Then 1 Else 0
+Else 0
+```
+
+---
+
+## 4.8 Performance Optimization Tips
+
+### Tip 1: Use Query Filters When Possible
+
+If you can identify "best" records at the database level:
+
+```sql
+-- Example SQL in universe
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY case_id ORDER BY modified_date DESC) as rn
+    FROM case_table
+)
+WHERE rn = 1
+```
+
+Then filter in WebI query:
+```
+Object: [Row Number]
+Operator: Equal to
+Value: 1
+```
+
+---
+
+### Tip 2: Pre-calculate Scores in Database
+
+Create calculated fields in the universe for complex scoring logic.
+
+**Universe Object:** `Best_Record_Score`
+```sql
+(CASE status
+    WHEN 'Amended' THEN 3000000
+    WHEN 'Final' THEN 2000000
+    WHEN 'Draft' THEN 1000000
+    ELSE 0
+END) +
+(DATEDIFF(day, '2020-01-01', modified_date) * 100) +
+(completeness_score)
+```
+
+Then in WebI:
+```webi
+Max([Best Record Score]) In ([Case ID])
+```
+
+---
+
+### Tip 3: Use Report Filters vs Variables for Large Datasets
+
+For very large datasets (>100K records), apply filters at report level rather than using Where clauses in every variable:
+
+**Better:**
+```
+Report Filter: [var_Is_Best_Record] = "BEST"
+Then all measures automatically filtered
+```
+
+**Slower:**
+```webi
+Count([Case ID]) Where ([var_Is_Best_Record] = "BEST")
+Sum([Evidence Count]) Where ([var_Is_Best_Record] = "BEST")
+// Repeated for every measure
+```
+
+---
+
+## 4.9 Common Patterns Summary
+
+### Quick Reference Table
+
+| Goal | Key Formula Pattern | Use When |
+|------|---------------------|----------|
+| **Latest Record** | `If [Date] = Max([Date]) In ([ID]) Then "Yes"` | Simple date-based versioning |
+| **Most Complete** | `Max([Completeness Score]) In ([ID])` | Variable data quality |
+| **Last Modified** | `Max([Modified Date]) In ([ID])` | Audit trail exists |
+| **Status Priority** | `Max([Status Numeric Priority]) In ([ID])` | Status hierarchy exists |
+| **Multi-Criteria** | `Max([Composite Score]) In ([ID])` | Multiple factors matter |
+| **Data Quality** | `Max([Quality Score]) In ([ID])` | Comprehensive selection |
+
+---
+
+### Decision Tree: Which Pattern to Use?
+
+```
+Do you have modified/updated dates?
+├─ YES → Do you care about data completeness?
+│   ├─ YES → Use Multi-Criteria with Date + Completeness
+│   └─ NO → Use Latest by Date
+│
+└─ NO → Do you have status values (Draft/Final)?
+    ├─ YES → Do you care about completeness?
+    │   ├─ YES → Use Status Priority + Completeness
+    │   └─ NO → Use Status Priority Only
+    │
+    └─ NO → Do you have quality indicators?
+        ├─ YES → Use Data Quality Score
+        └─ NO → Use Most Complete Record
+```
+
+---
+
+## 4.10 Troubleshooting
+
+### Issue 1: Still Getting Multiple Records per ID
+
+**Cause:** Tie in scoring - multiple records have same "best" score.
+
+**Solution:** Add additional tie-breaker criteria or use unique record ID.
+
+```webi
+// Add record ID as tie-breaker
+([Primary Score] * 1000) + [Record ID]
+```
+
+---
+
+### Issue 2: #MULTIVALUE Error
+
+**Cause:** Selected field varies across "best" records for an ID.
+
+**Solution:** Either:
+1. Add the varying dimension to your block
+2. Use aggregation: `Max([Field]) In ([ID])`
+3. Ensure your "best record" logic accounts for this field
+
+---
+
+### Issue 3: Wrong Record Selected
+
+**Cause:** Scoring logic doesn't match business rules.
+
+**Debug:** Add these variables to your report temporarily:
+
+```webi
+// Variable: var_Debug_Score
+[var_Status_Priority] + " | " +
+"" + [var_Recency_Score] + " | " +
+"" + [var_Completeness_Count]
+```
+
+Review scores side-by-side with actual records to validate logic.
+
+---
+
+### Issue 4: Performance is Slow
+
+**Solutions:**
+1. Move filtering to query level if possible
+2. Pre-calculate scores in universe
+3. Use report filters instead of Where clauses
+4. Reduce number of records with query filters first
+5. Index key date/ID fields in database
+
+---
+
+## 4.11 Real-World Example: Incident Reports
+
+**Scenario:** Incident table has multiple reports per incident (initial, follow-up, amended).
+
+**Business Rule:** Use the latest FINAL or AMENDED report. If no final reports exist, use latest SUBMITTED. Never use DRAFT.
+
+```webi
+// Step 1: Assign status ranking
+// Variable: var_Report_Status_Rank
+If [Report Status] = "Amended" Then 4
+ElseIf [Report Status] = "Final" Then 3
+ElseIf [Report Status] = "Submitted" Then 2
+ElseIf [Report Status] = "Draft" Then 1
+Else 0
+
+// Step 2: Combine status rank with date
+// Variable: var_Report_Selection_Score
+// Format: RDDDD (Rank + Days since 2020)
+([var_Report_Status_Rank] * 10000) +
+DaysBetween(ToDate("2020-01-01"; "yyyy-MM-dd"); [Report Date])
+
+// Step 3: Find best score per incident
+// Variable: var_Best_Report_Score_Per_Incident
+Max([var_Report_Selection_Score]) In ([Incident ID])
+
+// Step 4: Flag best report
+// Variable: var_Is_Selected_Report
+If [var_Report_Selection_Score] = [var_Best_Report_Score_Per_Incident]
+Then "Selected"
+Else "Not Selected"
+
+// Step 5: Exclude drafts entirely
+// Variable: var_Final_Selection
+If [Report Status] = "Draft" Then "Exclude"
+ElseIf [var_Is_Selected_Report] = "Selected" Then "Include"
+Else "Exclude"
+
+// Apply Report Filter: [var_Final_Selection] = "Include"
+```
+
+**Result:** One report per Incident ID, preferring Amended > Final > Submitted, latest date wins ties, drafts excluded.
+
+---
+
+
+
