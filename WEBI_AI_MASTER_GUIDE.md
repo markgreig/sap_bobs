@@ -695,3 +695,1478 @@ Value: @Prompt('Select District:', 'A', 'District\\District Name', mono, constra
 
 ---
 
+# PART 3: FORMULA LIBRARY
+
+This section contains 100+ formulas organized by category, all with police data examples.
+
+## 3.1 Conditional Logic
+
+Conditional logic allows you to make decisions in formulas based on data values.
+
+### Simple If Statement
+
+**Syntax:** `If [Condition] Then [Value] Else [Value]`
+
+**Complexity:** Beginner
+
+**Police Examples:**
+
+```webi
+// Variable: var_Priority_Flag
+If [Priority Level] >= 7 Then "Urgent" Else "Standard"
+```
+
+```webi
+// Variable: var_Case_Age_Flag
+If [Days Open] > 30 Then "Overdue" Else "Current"
+```
+
+```webi
+// Variable: var_Response_Status
+If [Response Minutes] <= 10 Then "On Target" Else "Delayed"
+```
+
+```webi
+// Variable: var_Case_Assigned
+If [Officer ID] <> "" Then "Assigned" Else "Unassigned"
+```
+
+---
+
+### Nested If Statements
+
+**Syntax:** `If [Cond1] Then [Val1] ElseIf [Cond2] Then [Val2] Else [Val3]`
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// Variable: var_Incident_Severity
+If [Injury Count] > 0 Then "Critical"
+ElseIf [Property Damage] > 50000 Then "Serious"
+ElseIf [Weapon Involved] = "Yes" Then "Elevated"
+Else "Standard"
+```
+
+```webi
+// Variable: var_Case_Priority_Category
+If [Priority Level] >= 8 Then "Critical"
+ElseIf [Priority Level] >= 6 Then "High"
+ElseIf [Priority Level] >= 4 Then "Medium"
+ElseIf [Priority Level] >= 2 Then "Low"
+Else "Minimal"
+```
+
+```webi
+// Variable: var_Officer_Workload_Status
+If [Active Cases] > 20 Then "Overloaded"
+ElseIf [Active Cases] > 15 Then "High Load"
+ElseIf [Active Cases] > 10 Then "Normal Load"
+ElseIf [Active Cases] > 5 Then "Light Load"
+Else "Minimal Load"
+```
+
+```webi
+// Variable: var_Evidence_Quality_Rating
+If [Evidence Items] >= 10 And [Witness Count] >= 3 Then "Excellent"
+ElseIf [Evidence Items] >= 5 And [Witness Count] >= 2 Then "Good"
+ElseIf [Evidence Items] >= 2 Or [Witness Count] >= 1 Then "Fair"
+Else "Poor"
+```
+
+---
+
+### And Logic
+
+**Syntax:** `If [Condition1] And [Condition2] Then [Value] Else [Value]`
+
+**Complexity:** Intermediate
+
+**Use:** All conditions must be true
+
+**Police Examples:**
+
+```webi
+// Variable: var_High_Risk_Case
+If [Priority Level] >= 8 And [Weapon Involved] = "Yes" Then "High Risk" Else "Standard"
+```
+
+```webi
+// Variable: var_Cold_Case_Priority
+If [Days Open] > 365 And [Evidence Items] > 0 And [Witness Count] > 0 Then "Workable Cold Case" Else "Cold Case - Low Evidence"
+```
+
+```webi
+// Variable: var_Urgent_Investigation
+If [Crime Category] = "Violent" And [Days Open] < 7 And [Leads Count] > 0 Then "Priority Investigation" Else "Standard"
+```
+
+```webi
+// Variable: var_Case_Ready_For_Review
+If [Status] = "Complete" And [Evidence Logged] = "Yes" And [Report Filed] = "Yes" Then "Ready" Else "Pending"
+```
+
+---
+
+### Or Logic
+
+**Syntax:** `If [Condition1] Or [Condition2] Then [Value] Else [Value]`
+
+**Complexity:** Intermediate
+
+**Use:** Any condition can be true
+
+**Police Examples:**
+
+```webi
+// Variable: var_Needs_Attention
+If [Priority Level] >= 8 Or [Days Open] > 90 Or [Victim Calls] > 5 Then "Needs Attention" Else "Standard"
+```
+
+```webi
+// Variable: var_Special_Handling
+If [Media Involved] = "Yes" Or [VIP Involved] = "Yes" Or [Political Sensitivity] = "High" Then "Special Handling" Else "Normal"
+```
+
+```webi
+// Variable: var_Escalation_Required
+If [Complaints Filed] > 0 Or [Supervisor Flagged] = "Yes" Or [Legal Hold] = "Yes" Then "Escalate" Else "Normal Processing"
+```
+
+```webi
+// Variable: var_Requires_Specialist
+If [Crime Type] = "Cybercrime" Or [Crime Type] = "Fraud" Or [Crime Type] = "Forensics Required" Then "Specialist Needed" Else "General Detective"
+```
+
+---
+
+## 3.2 Aggregation Functions
+
+Aggregation functions perform calculations across multiple rows.
+
+### Sum
+
+**Syntax:** `Sum([Measure])`
+
+**Complexity:** Beginner
+
+**Use:** Total of all values
+
+**Police Examples:**
+
+```webi
+// Total incidents
+Sum([Incident Count])
+```
+
+```webi
+// Total arrests across all districts
+Sum([Arrest Count])
+```
+
+```webi
+// Total response time in minutes
+Sum([Response Minutes])
+```
+
+```webi
+// Total property damage value
+Sum([Property Damage Amount])
+```
+
+**With Context:**
+
+```webi
+// Total incidents per district (regardless of month in block)
+Sum([Incident Count]) In ([District])
+```
+
+```webi
+// Total arrests per officer
+Sum([Arrest Count]) In ([Officer ID])
+```
+
+---
+
+### Count
+
+**Syntax:** `Count([Object])`
+
+**Complexity:** Beginner
+
+**Use:** Number of non-null records
+
+**Police Examples:**
+
+```webi
+// Count of cases
+Count([Case ID])
+```
+
+```webi
+// Count of incidents
+Count([Incident ID])
+```
+
+```webi
+// Count of officers
+Count([Officer ID])
+```
+
+```webi
+// Count of evidence items
+Count([Evidence ID])
+```
+
+**With Filter:**
+
+```webi
+// Count of open cases only
+Count([Case ID]) Where ([Status] = "Open")
+```
+
+```webi
+// Count of violent crimes
+Count([Incident ID]) Where ([Crime Category] = "Violent")
+```
+
+---
+
+### Count Distinct
+
+**Syntax:** `Count([Object]; Distinct)`
+
+**Complexity:** Intermediate
+
+**Use:** Count unique values only
+
+**Police Examples:**
+
+```webi
+// Unique officers assigned
+Count([Officer ID]; Distinct)
+```
+
+```webi
+// Unique case types
+Count([Case Type]; Distinct)
+```
+
+```webi
+// Unique suspects involved
+Count([Suspect ID]; Distinct)
+```
+
+```webi
+// Unique locations with incidents
+Count([Location ID]; Distinct)
+```
+
+```webi
+// Unique victims across cases
+Count([Victim ID]; Distinct) In ([Case ID])
+```
+
+---
+
+### Average
+
+**Syntax:** `Average([Measure])`
+
+**Complexity:** Beginner
+
+**Use:** Mean value
+
+**Police Examples:**
+
+```webi
+// Average response time in minutes
+Average([Response Minutes])
+```
+
+```webi
+// Average case resolution days
+Average([Days To Close])
+```
+
+```webi
+// Average priority level
+Average([Priority Level])
+```
+
+```webi
+// Average incidents per day
+Average([Incident Count]) In ([Date])
+```
+
+**With Context:**
+
+```webi
+// Average response time per district
+Average([Response Minutes]) In ([District])
+```
+
+---
+
+### Min and Max
+
+**Syntax:** `Min([Measure])` / `Max([Measure])`
+
+**Complexity:** Beginner
+
+**Use:** Minimum or maximum value
+
+**Police Examples:**
+
+```webi
+// Fastest response time
+Min([Response Minutes])
+```
+
+```webi
+// Slowest response time
+Max([Response Minutes])
+```
+
+```webi
+// Earliest incident date
+Min([Incident Date])
+```
+
+```webi
+// Latest incident date
+Max([Incident Date])
+```
+
+```webi
+// Highest priority level
+Max([Priority Level]) In ([Case ID])
+```
+
+```webi
+// Oldest open case date
+Min([Open Date]) Where ([Status] = "Open")
+```
+
+---
+
+### Conditional Aggregations
+
+**Syntax:** `Sum/Count/Average([Measure]) Where ([Condition])`
+
+**Complexity:** Intermediate
+
+**Use:** Aggregate with filter
+
+**Police Examples:**
+
+```webi
+// Count of high-priority cases
+Count([Case ID]) Where ([Priority Level] >= 7)
+```
+
+```webi
+// Total violent crime incidents
+Sum([Incident Count]) Where ([Crime Category] = "Violent")
+```
+
+```webi
+// Average response time for emergency calls
+Average([Response Minutes]) Where ([Call Type] = "Emergency")
+```
+
+```webi
+// Count of cases closed this year
+Count([Case ID]) Where (Year([Close Date]) = Year(CurrentDate()))
+```
+
+```webi
+// Sum of property damage for burglaries
+Sum([Property Damage]) Where ([Crime Type] = "Burglary")
+```
+
+```webi
+// Count of cases assigned to District North
+Count([Case ID]) Where ([District] = "North")
+```
+
+---
+
+## 3.3 Context Operators
+
+Context operators control which dimensions are used in calculations. (See Part 2.2 for detailed explanations)
+
+### IN Operator
+
+**Syntax:** `[Measure] In ([Dim1]; [Dim2])`
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// Latest incident date per case
+Max([Incident Date]) In ([Case ID])
+```
+
+```webi
+// Total incidents per district and year
+Sum([Incident Count]) In ([District]; [Year])
+```
+
+```webi
+// Highest priority per officer
+Max([Priority Level]) In ([Officer ID])
+```
+
+```webi
+// Count of cases per district
+Count([Case ID]) In ([District])
+```
+
+```webi
+// Most recent call time per location
+Max([Call Time]) In ([Location ID])
+```
+
+---
+
+### ForEach Operator
+
+**Syntax:** `[Measure] ForEach([AdditionalDim])`
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// Count incidents including hidden beat dimension
+Count([Incident ID]) ForEach([Beat])
+```
+
+```webi
+// Sum cases including officer shift (not shown in block)
+Sum([Case Count]) ForEach([Shift])
+```
+
+```webi
+// Average response including hidden call type
+Average([Response Minutes]) ForEach([Call Type])
+```
+
+---
+
+### ForAll Operator
+
+**Syntax:** `[Measure] ForAll([DimensionToRemove])`
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// District annual total (removes month)
+Sum([Incident Count]) ForAll([Month])
+```
+
+```webi
+// Citywide total (removes district)
+Sum([Case Count]) ForAll([District])
+```
+
+```webi
+// Percentage of district total
+([Incidents] / Sum([Incidents]) ForAll([Month])) * 100
+```
+
+---
+
+### Where Operator
+
+**Syntax:** `[Measure] Where ([Condition] = "Value")`
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// Count violent crimes only
+Count([Incident ID]) Where ([Category] = "Violent")
+```
+
+```webi
+// Sum arrests for drug offenses
+Sum([Arrest Count]) Where ([Offense Type] = "Drug")
+```
+
+```webi
+// Average response for priority calls
+Average([Response Minutes]) Where ([Priority Level] >= 7)
+```
+
+```webi
+// Count cases opened this year
+Count([Case ID]) Where (Year([Open Date]) = Year(CurrentDate()))
+```
+
+---
+
+## 3.4 Time & Date Functions
+
+Date and time functions are critical for police data analysis.
+
+### CurrentDate
+
+**Syntax:** `CurrentDate()`
+
+**Complexity:** Beginner
+
+**Returns:** Today's date
+
+**Police Examples:**
+
+```webi
+// Calculate case age in days
+DaysBetween([Open Date]; CurrentDate())
+```
+
+```webi
+// Flag cases older than 30 days
+If DaysBetween([Open Date]; CurrentDate()) > 30 Then "Overdue" Else "Current"
+```
+
+```webi
+// Display report run date
+"Report Generated: " + FormatDate(CurrentDate(); "dd/MM/yyyy")
+```
+
+---
+
+### Year, Month, Day
+
+**Syntax:** `Year([Date])` / `Month([Date])` / `Day([Date])`
+
+**Complexity:** Beginner
+
+**Returns:** Year (2024), Month (1-12), Day (1-31)
+
+**Police Examples:**
+
+```webi
+// Extract year from incident date
+Year([Incident Date])
+```
+
+```webi
+// Extract month number
+Month([Call Date])
+```
+
+```webi
+// Extract day of month
+Day([Arrest Date])
+```
+
+```webi
+// Filter current year incidents
+If Year([Incident Date]) = Year(CurrentDate()) Then [Incident Count] Else 0
+```
+
+```webi
+// Month name variable
+If Month([Date]) = 1 Then "January"
+ElseIf Month([Date]) = 2 Then "February"
+// ... etc
+```
+
+---
+
+### DayName
+
+**Syntax:** `DayName([Date])`
+
+**Complexity:** Intermediate
+
+**Returns:** "Monday", "Tuesday", etc.
+
+**Police Examples:**
+
+```webi
+// Day of week for incident
+DayName([Incident Date])
+```
+
+```webi
+// Identify weekend incidents
+If DayName([Incident Date]) In ("Saturday"; "Sunday") Then "Weekend" Else "Weekday"
+```
+
+```webi
+// Weekend incident flag
+If DayName([Call Date]) = "Saturday" Or DayName([Call Date]) = "Sunday" Then "Yes" Else "No"
+```
+
+---
+
+### RelativeDate
+
+**Syntax:** `RelativeDate([Date]; DaysOffset)`
+
+**Complexity:** Intermediate
+
+**Use:** Add or subtract days from a date
+
+**Police Examples:**
+
+```webi
+// 30 days ago
+RelativeDate(CurrentDate(); -30)
+```
+
+```webi
+// 7 days from incident
+RelativeDate([Incident Date]; 7)
+```
+
+```webi
+// Cases opened in last 30 days
+If [Open Date] >= RelativeDate(CurrentDate(); -30) Then "Recent" Else "Older"
+```
+
+```webi
+// Response deadline (incident date + 2 days)
+RelativeDate([Incident Date]; 2)
+```
+
+**WebI 4.2 Period Types:**
+
+```webi
+// Last month
+RelativeDate(CurrentDate(); -1; MonthPeriod)
+```
+
+```webi
+// Last quarter
+RelativeDate(CurrentDate(); -1; QuarterPeriod)
+```
+
+```webi
+// Last year
+RelativeDate(CurrentDate(); -1; YearPeriod)
+```
+
+---
+
+### DaysBetween
+
+**Syntax:** `DaysBetween([StartDate]; [EndDate])`
+
+**Complexity:** Intermediate
+
+**Returns:** Number of days between dates
+
+**Police Examples:**
+
+```webi
+// Case age in days
+DaysBetween([Open Date]; CurrentDate())
+```
+
+```webi
+// Days to close case
+DaysBetween([Open Date]; [Close Date])
+```
+
+```webi
+// Response time in days
+DaysBetween([Call Date]; [Arrival Date])
+```
+
+```webi
+// Days since last activity
+DaysBetween([Last Activity Date]; CurrentDate())
+```
+
+**Convert to hours/minutes:**
+
+```webi
+// Response time in hours
+DaysBetween([Call Time]; [Arrival Time]) * 24
+```
+
+```webi
+// Response time in minutes
+DaysBetween([Call Time]; [Arrival Time]) * 24 * 60
+```
+
+---
+
+### FormatDate
+
+**Syntax:** `FormatDate([Date]; "FormatString")`
+
+**Complexity:** Beginner
+
+**Use:** Custom date display format
+
+**Police Examples:**
+
+```webi
+// Standard date format
+FormatDate([Incident Date]; "dd/MM/yyyy")
+// Output: 25/12/2024
+```
+
+```webi
+// Month and year only
+FormatDate([Report Date]; "MMMM yyyy")
+// Output: December 2024
+```
+
+```webi
+// Short format
+FormatDate([Call Date]; "dd-MMM-yy")
+// Output: 25-Dec-24
+```
+
+```webi
+// Full date with day name
+FormatDate([Incident Date]; "dddd, dd MMMM yyyy")
+// Output: Monday, 25 December 2024
+```
+
+```webi
+// ISO format
+FormatDate([Date]; "yyyy-MM-dd")
+// Output: 2024-12-25
+```
+
+---
+
+### ToDate
+
+**Syntax:** `ToDate([StringValue]; "FormatString")`
+
+**Complexity:** Intermediate
+
+**Use:** Convert string to date
+
+**Police Examples:**
+
+```webi
+// Parse date from text field
+ToDate([Date Text Field]; "yyyy-MM-dd")
+```
+
+```webi
+// Convert text to date
+ToDate("2024-01-15"; "yyyy-MM-dd")
+```
+
+```webi
+// Parse date with different format
+ToDate([Legacy Date Field]; "dd/MM/yyyy")
+```
+
+---
+
+### Year-to-Date (YTD) Calculations
+
+**Complexity:** Advanced
+
+**Police Examples:**
+
+```webi
+// YTD incidents
+Sum([Incident Count]) Where (
+    Year([Incident Date]) = Year(CurrentDate())
+    And Month([Incident Date]) <= Month(CurrentDate())
+)
+```
+
+```webi
+// YTD arrests
+Sum([Arrest Count]) Where (
+    [Arrest Date] >= ToDate("01/01/" + FormatNumber(Year(CurrentDate()); "0000"); "dd/MM/yyyy")
+    And [Arrest Date] <= CurrentDate()
+)
+```
+
+```webi
+// Cases opened YTD
+Count([Case ID]) Where (
+    Year([Open Date]) = Year(CurrentDate())
+    And [Open Date] <= CurrentDate()
+)
+```
+
+---
+
+### Quarter Calculations
+
+**Complexity:** Intermediate
+
+**Police Examples:**
+
+```webi
+// Current quarter
+"Q" + FormatNumber(Ceil(Month(CurrentDate()) / 3); "0")
+// Output: Q4
+```
+
+```webi
+// Quarter from date
+"Q" + FormatNumber(Ceil(Month([Incident Date]) / 3); "0")
+```
+
+```webi
+// Quarter classification
+If Month([Date]) <= 3 Then "Q1"
+ElseIf Month([Date]) <= 6 Then "Q2"
+ElseIf Month([Date]) <= 9 Then "Q3"
+Else "Q4"
+```
+
+---
+
+### Working Days Calculation
+
+**Complexity:** Advanced
+
+**Police Examples:**
+
+```webi
+// Previous working day
+If DayName(CurrentDate()) = "Monday" Then RelativeDate(CurrentDate(); -3)
+ElseIf DayName(CurrentDate()) = "Sunday" Then RelativeDate(CurrentDate(); -2)
+Else RelativeDate(CurrentDate(); -1)
+```
+
+```webi
+// Is working day?
+If DayName([Date]) <> "Saturday" And DayName([Date]) <> "Sunday" Then "Yes" Else "No"
+```
+
+---
+
+## 3.5 String Manipulation
+
+String functions for text processing and parsing.
+
+### Concatenation
+
+**Syntax:** `[String1] + [String2]`
+
+**Complexity:** Beginner
+
+**Police Examples:**
+
+```webi
+// Full name
+[First Name] + " " + [Last Name]
+```
+
+```webi
+// Full officer name with badge
+[Officer Name] + " (Badge: " + [Badge Number] + ")"
+```
+
+```webi
+// Complete address
+[Street Number] + " " + [Street Name] + ", " + [City] + ", " + [State] + " " + [Zip Code]
+```
+
+```webi
+// Case reference
+[Case Number] + " - " + [Case Type]
+```
+
+```webi
+// Incident summary
+[Crime Type] + " at " + [Location] + " on " + FormatDate([Incident Date]; "dd/MM/yyyy")
+```
+
+---
+
+### Left Function
+
+**Syntax:** `Left([String]; N)`
+
+**Complexity:** Beginner
+
+**Use:** Extract first N characters
+
+**Police Examples:**
+
+```webi
+// Year from case number (first 4 characters)
+Left([Case Number]; 4)
+```
+
+```webi
+// District code (first 2 characters of location code)
+Left([Location Code]; 2)
+```
+
+```webi
+// Incident category prefix
+Left([Incident ID]; 3)
+```
+
+```webi
+// Badge division (first 3 digits)
+Left([Badge Number]; 3)
+```
+
+---
+
+### Right Function
+
+**Syntax:** `Right([String]; N)`
+
+**Complexity:** Beginner
+
+**Use:** Extract last N characters
+
+**Police Examples:**
+
+```webi
+// Sequential number (last 4 digits of case number)
+Right([Case Number]; 4)
+```
+
+```webi
+// Badge suffix
+Right([Badge Number]; 3)
+```
+
+```webi
+// Last 4 of phone number
+Right([Phone Number]; 4)
+```
+
+```webi
+// Last 4 of SSN
+"XXX-XX-" + Right([SSN]; 4)
+```
+
+---
+
+### Substr / Mid Function
+
+**Syntax:** `Substr([String]; StartPosition; Length)`
+
+**Complexity:** Intermediate
+
+**Use:** Extract substring from specific position
+
+**Police Examples:**
+
+```webi
+// Extract month from case number (positions 5-6)
+Substr([Case Number]; 5; 2)
+```
+
+```webi
+// Extract district code (positions 3-5)
+Substr([Location ID]; 3; 3)
+```
+
+```webi
+// Extract beat number
+Substr([Beat Code]; 4; 2)
+```
+
+```webi
+// Extract middle initial
+Substr([Full Name]; Pos([Full Name]; " ") + 1; 1)
+```
+
+---
+
+### Upper, Lower, InitCap
+
+**Syntax:** `Upper([String])` / `Lower([String])` / `InitCap([String])`
+
+**Complexity:** Beginner
+
+**Police Examples:**
+
+```webi
+// Uppercase location for consistency
+Upper([Location Name])
+// Output: "MAIN STREET"
+```
+
+```webi
+// Lowercase email
+Lower([Email Address])
+// Output: "officer@police.gov"
+```
+
+```webi
+// Proper case for names
+InitCap([Suspect Name])
+// Output: "John Smith"
+```
+
+```webi
+// Standardize district names
+Upper([District])
+```
+
+---
+
+### Replace Function
+
+**Syntax:** `Replace([String]; "FindText"; "ReplaceText")`
+
+**Complexity:** Beginner
+
+**Use:** Find and replace text
+
+**Police Examples:**
+
+```webi
+// Remove hyphens from phone number
+Replace([Phone Number]; "-"; "")
+// Input: "555-123-4567"
+// Output: "5551234567"
+```
+
+```webi
+// Remove spaces from badge number
+Replace([Badge Number]; " "; "")
+```
+
+```webi
+// Standardize abbreviations
+Replace([Location]; "St."; "Street")
+```
+
+```webi
+// Clean case numbers
+Replace([Case Number]; "/"; "-")
+```
+
+---
+
+### Pos Function (Position)
+
+**Syntax:** `Pos([String]; "SearchText")`
+
+**Complexity:** Intermediate
+
+**Returns:** Position of text (0 if not found)
+
+**Police Examples:**
+
+```webi
+// Find position of @ in email
+Pos([Email]; "@")
+```
+
+```webi
+// Find position of space in name
+Pos([Full Name]; " ")
+```
+
+```webi
+// Check if case number contains district code
+Pos([Case Number]; "N01")
+```
+
+```webi
+// Extract domain from email
+Right([Email]; Length([Email]) - Pos([Email]; "@"))
+```
+
+---
+
+### Length Function
+
+**Syntax:** `Length([String])`
+
+**Complexity:** Beginner
+
+**Returns:** Number of characters
+
+**Police Examples:**
+
+```webi
+// Validate badge number length
+If Length([Badge Number]) = 6 Then "Valid" Else "Invalid"
+```
+
+```webi
+// Check case number format
+If Length([Case Number]) = 10 Then "Standard Format" Else "Non-Standard"
+```
+
+```webi
+// Count characters in notes
+Length([Case Notes])
+```
+
+---
+
+### Complex String Examples
+
+**Police Examples:**
+
+```webi
+// Extract first name from full name
+Left([Full Name]; Pos([Full Name]; " ") - 1)
+```
+
+```webi
+// Extract last name from full name
+Right([Full Name]; Length([Full Name]) - Pos([Full Name]; " "))
+```
+
+```webi
+// Mask SSN
+Left([SSN]; 3) + "-XX-" + Right([SSN]; 4)
+// Output: "123-XX-7890"
+```
+
+```webi
+// Extract email username
+Left([Email]; Pos([Email]; "@") - 1)
+```
+
+```webi
+// Build case reference
+"Case #" + [Case Number] + " (" + [Status] + ")"
+```
+
+---
+
+## 3.6 Formatting Functions
+
+Functions to control display formatting.
+
+### FormatNumber
+
+**Syntax:** `FormatNumber([Number]; "FormatString")`
+
+**Complexity:** Beginner
+
+**Police Examples:**
+
+```webi
+// Format incident count with thousands separator
+FormatNumber([Incident Count]; "#,##0")
+// Output: "1,234"
+```
+
+```webi
+// Format response time with decimals
+FormatNumber([Response Minutes]; "#,##0.00")
+// Output: "12.50"
+```
+
+```webi
+// Format clearance rate as percentage
+FormatNumber([Clearance Rate] * 100; "0.0") + "%"
+// Output: "85.5%"
+```
+
+```webi
+// Format property damage as currency
+"$" + FormatNumber([Property Damage]; "#,##0.00")
+// Output: "$12,500.00"
+```
+
+```webi
+// Pad case number with leading zeros
+FormatNumber([Case Sequential]; "00000")
+// Output: "00123"
+```
+
+---
+
+### ToNumber
+
+**Syntax:** `ToNumber([String])`
+
+**Complexity:** Beginner
+
+**Use:** Convert string to number
+
+**Police Examples:**
+
+```webi
+// Convert text field to number
+ToNumber([Text Case Count])
+```
+
+```webi
+// Parse numeric badge number from text
+ToNumber([Badge Text])
+```
+
+```webi
+// Convert year string to number
+ToNumber(Left([Case Number]; 4))
+```
+
+---
+
+### Type Conversion
+
+**Police Examples:**
+
+```webi
+// Number to string (for concatenation)
+"Case " + ("" + [Case Number])
+```
+
+```webi
+// Ensure numeric calculation
+ToNumber([Text Field 1]) + ToNumber([Text Field 2])
+```
+
+---
+
+## 3.7 Advanced Functions
+
+Complex functions for specialized scenarios.
+
+### NoFilter Function
+
+**Syntax:** `NoFilter([Measure])` / `NoFilter([Measure]; All)` / `NoFilter([Measure]; Drill)`
+
+**Complexity:** Advanced
+
+**Use:** Ignore report/block filters to calculate on full dataset
+
+**Police Examples:**
+
+```webi
+// Percentage of total (ignoring filters)
+([Case Count] / NoFilter(Sum([Case Count]))) * 100
+```
+
+**Scenario:** Report is filtered to District North. This shows North's percentage of citywide total (unfiltered).
+
+```webi
+// Comparison to citywide average
+[Incident Rate] / NoFilter(Average([Incident Rate]))
+```
+
+```webi
+// Rank against all districts (ignoring section filters)
+Rank([Arrest Count]; NoFilter)
+```
+
+**NoFilter Options:**
+
+| Option | Ignores |
+|--------|---------|
+| (default) | Report and block filters |
+| All | All filters including drill |
+| Drill | Report and drill filters |
+
+---
+
+### Rank Function
+
+**Syntax:** `Rank([Measure])` / `Rank([Measure]) In ([Dimension])`
+
+**Complexity:** Intermediate
+
+**Use:** Assign ranking
+
+**Police Examples:**
+
+```webi
+// Overall rank by incident count
+Rank([Incident Count])
+```
+
+```webi
+// Rank within district
+Rank([Arrest Count]) In ([District])
+```
+
+```webi
+// Rank officers by case clearance
+Rank([Clearance Rate])
+```
+
+```webi
+// Top 10 flag
+If Rank([Crime Count]) <= 10 Then "Top 10" Else "Other"
+```
+
+```webi
+// Rank stations by response time (ascending = better)
+Rank([Avg Response Minutes])
+```
+
+---
+
+### IsNull Function
+
+**Syntax:** `IsNull([Object])`
+
+**Complexity:** Intermediate
+
+**Use:** Check for null values
+
+**Police Examples:**
+
+```webi
+// Handle null response times
+If IsNull([Response Minutes]) Then 0 Else [Response Minutes]
+```
+
+```webi
+// Check for missing officer assignment
+If IsNull([Officer ID]) Then "Unassigned" Else [Officer Name]
+```
+
+```webi
+// Safe division with null check
+If IsNull([Total Cases]) Or [Total Cases] = 0 Then 0
+Else [Closed Cases] / [Total Cases]
+```
+
+```webi
+// Flag incomplete records
+If IsNull([Case Type]) Or IsNull([Priority]) Then "Incomplete" Else "Complete"
+```
+
+---
+
+### IsError Function
+
+**Syntax:** `IsError([Object])`
+
+**Complexity:** Advanced
+
+**Use:** Check for calculation errors
+
+**Police Examples:**
+
+```webi
+// Handle calculation errors gracefully
+If IsError([Complex Calculation]) Then 0 Else [Complex Calculation]
+```
+
+```webi
+// Error flag
+If IsError([Clearance Rate]) Then "Error in Calculation" Else FormatNumber([Clearance Rate]; "0.0%")
+```
+
+```webi
+// Suppress errors in reports
+If IsError([Measure]) Then "" Else "" + [Measure]
+```
+
+---
+
+### Previous Function
+
+**Syntax:** `Previous([Measure])` / `Previous([Measure]; [ResetDimension])`
+
+**Complexity:** Intermediate
+
+**Use:** Get previous period value
+
+**Requires:** Proper sort order
+
+**Police Examples:**
+
+```webi
+// Previous month incidents
+Previous([Incident Count])
+```
+
+```webi
+// Month-over-month change
+[Incident Count] - Previous([Incident Count])
+```
+
+```webi
+// Month-over-month percentage change
+If IsNull(Previous([Incidents])) Or Previous([Incidents]) = 0 Then 0
+Else (([Incidents] - Previous([Incidents])) / Previous([Incidents])) * 100
+```
+
+```webi
+// Previous year incidents (with reset by year)
+Previous([Incident Count]; [Year])
+```
+
+**Important:** Sort dimension properly for Previous() to work correctly!
+
+---
+
+### RunningSum Function
+
+**Syntax:** `RunningSum([Measure])` / `RunningSum([Measure]; [ResetDimension])`
+
+**Complexity:** Intermediate
+
+**Use:** Cumulative total
+
+**Police Examples:**
+
+```webi
+// Cumulative incidents year-to-date
+RunningSum([Incident Count])
+```
+
+```webi
+// Cumulative arrests with reset by year
+RunningSum([Arrest Count]; [Year])
+```
+
+```webi
+// Cumulative cases by officer (reset per officer)
+RunningSum([Case Count]; [Officer ID])
+```
+
+```webi
+// Running total of property damage
+RunningSum([Property Damage Amount])
+```
+
+---
+
+### Hyperlinks and OpenDocument
+
+**Complexity:** Advanced
+
+**Use:** Link to other reports or documents
+
+**Police Examples:**
+
+```webi
+// Link to case detail report
+="<a href='http://server:8080/BOE/OpenDocument/opendoc/openDocument.jsp?sType=wid&sDocName=Case_Detail_Report&lsSCase_ID:='" + URLEncode([Case ID]) + "'>" + [Case Number] + "</a>"
+```
+
+```webi
+// Link to officer detail page
+="<a href='http://server:8080/BOE/OpenDocument/opendoc/openDocument.jsp?sType=wid&sDocName=Officer_Report&lsSOfficer_ID:='" + URLEncode([Officer ID]) + "'>View Officer Details</a>"
+```
+
+```webi
+// Link to district dashboard
+="<a href='http://server:8080/BOE/OpenDocument/opendoc/openDocument.jsp?sType=wid&sDocName=District_Dashboard&lsSDistrict:='" + URLEncode([District]) + "'>" + [District] + " Dashboard</a>"
+```
+
+**Parameters:**
+- `sType=wid`: Web Intelligence document
+- `sDocName`: Target document name
+- `lsS[PromptName]:=`: Single-value prompt
+- `lsM[PromptName]:=`: Multi-value prompt
+
+**Always use `URLEncode()` for parameter values!**
+
+---
+
