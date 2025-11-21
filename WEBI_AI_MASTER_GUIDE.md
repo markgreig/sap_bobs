@@ -4920,5 +4920,765 @@ If IsNull([A]) Or [A] = 0 Then 0 Else [var_Sum_BCD] / [A]
 
 ---
 
+# Part 7: Optimization Guide
+
+This section provides comprehensive performance optimization strategies for WebI reports, organized from highest to lowest impact.
+
+## 7.1 Query-Level Optimization (Highest Impact)
+
+Query-level optimizations have the biggest performance impact (10-100x improvement) because they reduce data retrieved from the database.
+
+### 7.1.1 Use Query Filters Instead of Report Filters
+
+**Impact:** 10-100x performance improvement
+
+**Rule:** If filter criteria are known before report runs, use query filters.
+
+```webi
+// SLOW: Report filter
+// Fetches 100,000 incidents, filters to 2,000 in WebI
+// Report Filter: [District] = "North"
+
+// FAST: Query filter
+// Fetches only 2,000 incidents from database
+// Edit Query → Query Filters → [District] = "North"
+```
+
+**When to Use Query Filters:**
+- Fixed geographic regions (district, precinct)
+- Fixed time periods (last 30 days, current year)
+- Fixed status values (Active, Open, Closed)
+- Any filter that doesn't need to change between refreshes
+
+**When to Use Report Filters:**
+- Interactive filtering by end users
+- Dynamic filtering based on user selection
+- Filtering that changes frequently without rerunning query
+
+### 7.1.2 Limit Date Ranges in Query
+
+**Impact:** 50-90% reduction in data volume
+
+```webi
+// SLOW: No date filter - fetches all historical data
+// Query fetches: 500,000 incidents from 2010-present
+
+// FAST: Add date filter
+// Query Filter: [Incident Date] >= RelativeDate(CurrentDate(); -365)
+// Query fetches: 50,000 incidents from last year only
+
+// Performance: 10x faster
+```
+
+**Best Practices:**
+- Always include date range filters for transactional data
+- Default to reasonable time window (30, 90, or 365 days)
+- Use prompts for user-selectable date ranges
+- Consider data archiving for very old data
+
+### 7.1.3 Remove Unused Objects from Query
+
+**Impact:** 20-40% performance improvement
+
+**Process:**
+1. Edit Query
+2. Review all Result Objects
+3. Remove any not used in report
+4. Minimize dimensions (keep only what's needed for breaks/grouping)
+5. Minimize measures (keep only what's displayed or calculated)
+
+```webi
+// BEFORE: Query has 50 objects
+- [Incident ID]
+- [Case ID]
+- [Incident Date]
+- [Modified Date]
+- [Created Date]
+- [Incident Type]
+- [Incident SubType]
+- [Status]
+- [Priority]
+- [District]
+- [Beat]
+- [Location Address]
+- [Location Latitude]
+- [Location Longitude]
+... (36 more fields not used)
+
+// AFTER: Query has 8 objects
+- [Incident Date]
+- [Incident Type]
+- [Status]
+- [District]
+- [Priority Level]
+- [Officer ID]
+- [Response Time]
+- [Case Count]
+
+// Performance: 30% faster, 60% less memory
+```
+
+### 7.1.4 Use Predefined Conditions
+
+**Impact:** Ensures consistent query filters
+
+**Setup:** Universe designer creates predefined conditions at universe level.
+
+**Usage:**
+```webi
+// Instead of manually creating filter each time:
+[Incident Date] >= RelativeDate(CurrentDate(); -30) And [Status] Not In ("Cancelled", "Duplicate")
+
+// Use predefined condition:
+"Active Incidents - Last 30 Days"
+
+// Benefits:
+// - Consistent across all reports
+// - Maintained centrally
+// - Often optimized at database level
+```
+
+### 7.1.5 Optimize Query SQL
+
+**For Universe Designers:** Ensure efficient SQL generation
+
+**Techniques:**
+- Use database indexes on filter fields
+- Use indexes on join keys
+- Consider aggregate awareness (pre-aggregated tables)
+- Use database-specific optimizations
+- Review generated SQL (Tools → View SQL)
+
+---
+
+## 7.2 Scope of Analysis Optimization
+
+**Impact:** 20-50% performance improvement
+
+### What is Scope of Analysis?
+
+Scope of Analysis determines what additional data WebI fetches to support drilling in reports.
+
+**Options:**
+1. **None:** No drilling - fastest
+2. **One Level:** Can drill down one level - moderate
+3. **Two Levels:** Can drill down two levels - slower
+4. **Custom:** Specify exact drilling dimensions - optimized
+5. **All Dimensions:** Can drill anywhere - slowest
+
+### Optimization Strategy
+
+```webi
+// SLOW: Full scope of analysis
+// Query Properties → Scope of Analysis → "All dimensions"
+// Problem: Fetches extra dimensions not shown in report
+// Example: Fetches Beat even though report only shows District
+
+// FAST: No scope of analysis
+// Query Properties → Scope of Analysis → "None"
+// Problem solved: Only fetches dimensions used in report
+// Performance: 30% faster, smaller result set
+
+// BALANCED: Custom scope
+// Query Properties → Scope of Analysis → "Custom"
+// Select only: [District] → [Beat] (if drilling from district to beat)
+// Performance: 20% faster than "All", drilling still works
+```
+
+### Police Data Example
+
+```webi
+// Report shows: District-level incident counts
+// User needs: Ability to drill to Beat level
+
+// WRONG: Scope = "All dimensions"
+// Fetches: District, Beat, Officer, Shift, Day of Week, Hour, etc.
+// Problem: Fetching 10+ dimensions when only need 2
+
+// RIGHT: Scope = "Custom"
+// Fetches: District, Beat only
+// Result: 40% faster, drilling works as needed
+```
+
+---
+
+## 7.3 Formula Optimization
+
+**Impact:** 10-30% performance improvement
+
+### 7.3.1 Use Simple Aggregations When Possible
+
+```webi
+// SLOWER: Complex nested aggregation
+Sum(If [Status] = "Closed" Then 1 Else 0)
+
+// FASTER: Use Where clause
+Sum([Cases]) Where ([Status] = "Closed")
+
+// FASTER STILL: Use Count
+Count([Case ID]) Where ([Status] = "Closed")
+```
+
+### 7.3.2 Avoid Repeated Calculations
+
+```webi
+// SLOW: Same calculation repeated
+// Variable: var_Display1
+If [Total Cases] = 0 Then 0 Else ([Closed Cases] / [Total Cases]) * 100
+
+// Variable: var_Display2
+FormatNumber(If [Total Cases] = 0 Then 0 Else ([Closed Cases] / [Total Cases]) * 100, "0.00")
+
+// Variable: var_Display3
+If (If [Total Cases] = 0 Then 0 Else ([Closed Cases] / [Total Cases]) * 100) > 80 Then "Good" Else "Needs Improvement"
+
+// FAST: Calculate once, reuse
+// Variable: var_Clearance_Rate_Raw
+If [Total Cases] = 0 Then 0 Else ([Closed Cases] / [Total Cases]) * 100
+
+// Variable: var_Clearance_Rate_Display
+FormatNumber([var_Clearance_Rate_Raw], "0.00")
+
+// Variable: var_Clearance_Category
+If [var_Clearance_Rate_Raw] > 80 Then "Good" Else "Needs Improvement"
+```
+
+### 7.3.3 Use Explicit Context Operators
+
+```webi
+// SLOWER: WebI must infer context
+Max([Response Time])
+
+// FASTER: Context specified explicitly
+Max([Response Time]) In ([District]; [Month])
+
+// Why faster? WebI doesn't need to analyze block structure to determine context
+```
+
+### 7.3.4 Minimize String Operations
+
+```webi
+// SLOW: Complex string manipulation in WebI
+Upper(Left([Full Address], Pos([Full Address], ",") - 1))
+
+// FAST: Pre-calculate in database or universe
+[Street Name]  // Extracted at database level
+
+// Rule: String operations (Upper, Lower, Substr, Pos, Replace) are slower than numeric operations
+```
+
+### 7.3.5 Cache Complex Calculations in Variables
+
+```webi
+// SLOW: Complex formula used in multiple places
+// Used in 5 different cells:
+If IsNull([A]) Or [A] = 0 Then 0 Else (([B] * [C] - [D]) / [A]) * If [E] > 10 Then 1.1 Else 1.0
+
+// FAST: Calculate once in variable
+// Variable: var_Complex_Metric
+If IsNull([A]) Or [A] = 0 Then 0 Else (([B] * [C] - [D]) / [A]) * If [E] > 10 Then 1.1 Else 1.0
+
+// Then use [var_Complex_Metric] in all 5 cells
+// Performance: Calculation happens once, not 5 times per row
+```
+
+---
+
+## 7.4 Report Design Optimization
+
+**Impact:** 10-40% performance improvement
+
+### 7.4.1 Minimize Number of Blocks
+
+**Rule:** Each block requires separate processing
+
+```webi
+// SLOW: 10 separate blocks for different metrics
+Block 1: District | Total Cases
+Block 2: District | Open Cases
+Block 3: District | Closed Cases
+Block 4: District | Avg Response Time
+... (6 more blocks)
+
+// FAST: Single block with all metrics
+Block 1: District | Total Cases | Open Cases | Closed Cases | Avg Response Time | ...
+
+// Performance: 50% faster (one pass through data instead of 10)
+```
+
+**Exception:** Separate blocks needed when dimensions differ significantly.
+
+### 7.4.2 Use Breaks Instead of Multiple Blocks
+
+```webi
+// SLOW: Separate block for each district
+Block "North": [Officer] | [Cases] WHERE [District] = "North"
+Block "South": [Officer] | [Cases] WHERE [District] = "South"
+Block "East": [Officer] | [Cases] WHERE [District] = "East"
+Block "West": [Officer] | [Cases] WHERE [District] = "West"
+
+// FAST: Single block with break on District
+Block 1: [District] | [Officer] | [Cases]
+Break on: [District]
+
+// Performance: 4x faster
+```
+
+### 7.4.3 Limit Block Rows with Query Filters
+
+```webi
+// SLOW: Block with 50,000 rows
+// All incidents from last year, no filters
+
+// FAST: Block with 5,000 rows
+// Query Filter: [Priority Level] >= 5
+// Only high-priority incidents
+
+// Rule: Blocks with >10,000 rows are slow
+// Solution: Filter at query level or aggregate data
+```
+
+### 7.4.4 Use Appropriate Chart Types
+
+**Performance Ranking (fastest to slowest):**
+1. Table (fastest)
+2. Bar chart (fast)
+3. Line chart (fast)
+4. Pie chart (moderate)
+5. Scatter plot (slow with many points)
+6. Complex visualizations (slowest)
+
+**Optimization:**
+```webi
+// SLOW: Scatter plot with 50,000 points
+// Each point requires rendering
+
+// FAST: Aggregate first, then chart
+// Group by hour/district, then scatter plot
+// 24 hours × 4 districts = 96 points instead of 50,000
+```
+
+---
+
+## 7.5 Data Provider Optimization
+
+**Impact:** 20-60% performance improvement
+
+### 7.5.1 Minimize Number of Data Providers
+
+**Rule:** Each query = separate database hit
+
+```webi
+// SLOW: 5 separate queries
+Query 1: Cases by District
+Query 2: Officers by District
+Query 3: Response Times by District
+Query 4: District Demographics
+Query 5: Historical Comparisons
+
+// FAST: 1-2 queries
+Query 1: Combined Case/Officer/Response data (joined at DB level)
+Query 2: District Demographics (separate if truly needed)
+
+// Performance: 3x faster
+```
+
+**When Multiple Queries Are Acceptable:**
+- Different data sources (different databases)
+- Significantly different grain (incident-level vs district-level)
+- Very different security contexts
+- Reusable queries across multiple reports
+
+### 7.5.2 Minimize Merged Dimensions
+
+**Rule:** Merging = expensive join operation in WebI
+
+```webi
+// SLOW: 4 merged dimensions across 3 queries
+Merged: [District], [Officer ID], [Date], [Incident Type]
+
+// FAST: Join at database level, use 1 query
+// No merging needed
+
+// If merging unavoidable: Minimize to 1-2 merged dimensions
+```
+
+**Merged Dimension Performance:**
+- 1 merged dimension: Acceptable
+- 2 merged dimensions: Slower but manageable
+- 3+ merged dimensions: Significantly slow
+- 5+ merged dimensions: Avoid if possible
+
+### 7.5.3 Use Compatible Dimension Values
+
+**Rule:** Merged dimensions with mismatched values are slower
+
+```webi
+// SLOWER: Merged dimensions with partial matches
+Query 1: Districts = "North", "South", "East", "West" (100 incidents each)
+Query 2: Districts = "North", "South" only (no East/West data)
+// WebI must handle unmatched values
+
+// FASTER: Merged dimensions with all matching values
+Query 1: Districts = "North", "South"
+Query 2: Districts = "North", "South"
+// Clean merge, no special handling
+```
+
+---
+
+## 7.6 Large Dataset Strategies
+
+**For datasets > 100,000 rows**
+
+### 7.6.1 Use Aggregated Tables
+
+**Database-Level Solution:**
+
+```sql
+-- Instead of querying raw incidents table (10M rows):
+SELECT District, COUNT(*) as IncidentCount
+FROM Incidents
+WHERE IncidentDate >= '2024-01-01'
+GROUP BY District
+
+-- Use pre-aggregated summary table (100 rows):
+SELECT District, IncidentCount
+FROM IncidentSummary_Daily
+WHERE SummaryDate >= '2024-01-01'
+```
+
+**Benefits:**
+- 100-1000x faster for aggregate reports
+- Reduced load on production database
+- Consistent performance regardless of data volume
+
+**Setup:**
+- Database team creates aggregate tables
+- Universe designer maps to aggregate tables
+- WebI automatically uses aggregate when appropriate
+
+### 7.6.2 Implement Data Pagination
+
+**For detail reports with many rows:**
+
+```webi
+// Instead of fetching all 100,000 incidents:
+// Use Top N or pagination
+
+// Query Filter: Rank([Incident Date], "Descending") <= 1000
+// This fetches only latest 1,000 incidents
+
+// OR use prompt for date range:
+// @Prompt('Start Date', 'D', {'2024-01-01'}, mono, free)
+// User specifies smaller date window
+```
+
+### 7.6.3 Use Query Stripping
+
+**For drill-down reports:**
+
+```webi
+// Initial query: Aggregate level
+Query Filter: None
+Result: District-level summary (4 rows)
+
+// When user drills to specific district:
+// WebI adds filter automatically
+Query Filter: [District] = "North"
+Result: Beat-level detail for North only (50 rows instead of 200)
+```
+
+**Setup:**
+- Enable query stripping in document properties
+- Design report with appropriate drill paths
+- WebI automatically optimizes queries on drill
+
+---
+
+## 7.7 Universe-Level Optimization
+
+**For Universe Designers**
+
+### 7.7.1 Use Aggregate Awareness
+
+**Setup:** Map high-level objects to aggregate tables
+
+```
+// Universe mapping:
+[District] → DISTRICT_SUMMARY.District (aggregate table)
+[Total Cases] → DISTRICT_SUMMARY.CaseCount (pre-calculated)
+
+// When query uses only [District] and [Total Cases]:
+// Uses DISTRICT_SUMMARY (100 rows)
+
+// When query uses [District], [Beat], [Total Cases]:
+// Uses CASE_DETAIL table (100,000 rows) - more detail needed
+```
+
+**Performance:** 10-100x improvement for aggregate reports
+
+### 7.7.2 Optimize Join Paths
+
+**Rule:** Minimize number of joins
+
+```sql
+-- SLOW: 5-table join
+Incidents → CaseDetails → Officers → Districts → Divisions
+
+-- FAST: 2-table join (denormalized)
+IncidentSummary → Districts
+```
+
+### 7.7.3 Index Filter Fields
+
+**Database Optimization:**
+
+```sql
+-- Ensure indexes exist on common filter fields:
+CREATE INDEX idx_incident_date ON Incidents(IncidentDate);
+CREATE INDEX idx_district ON Incidents(District);
+CREATE INDEX idx_status ON Incidents(Status);
+CREATE INDEX idx_priority ON Incidents(PriorityLevel);
+
+-- Composite index for common filter combinations:
+CREATE INDEX idx_district_date ON Incidents(District, IncidentDate);
+```
+
+**Impact:** 5-50x improvement for filtered queries
+
+---
+
+## 7.8 Optimization Checklist
+
+**Before Publishing Report:**
+
+### Query Level
+- [ ] All fixed filters moved to query level?
+- [ ] Date range appropriately limited?
+- [ ] Unused objects removed from query?
+- [ ] Scope of analysis minimized?
+- [ ] Appropriate predefined conditions used?
+
+### Formula Level
+- [ ] Complex calculations in variables (not repeated)?
+- [ ] Explicit context operators used?
+- [ ] String operations minimized?
+- [ ] Simple aggregations used when possible?
+
+### Report Design Level
+- [ ] Number of blocks minimized?
+- [ ] Breaks used instead of multiple blocks?
+- [ ] Block row counts reasonable (<10,000)?
+- [ ] Appropriate chart types selected?
+
+### Data Provider Level
+- [ ] Number of queries minimized (1-2 ideal)?
+- [ ] Merged dimensions minimized (<3)?
+- [ ] Are joins better done at database level?
+
+### Large Dataset Strategies
+- [ ] Using aggregate tables where appropriate?
+- [ ] Query stripping enabled for drill reports?
+- [ ] Pagination implemented for detail reports?
+
+---
+
+## 7.9 Performance Monitoring
+
+### 7.9.1 Measure Query Time
+
+**Tools → View Query Time:**
+- Shows execution time for each query
+- Identifies slow queries
+- Helps prioritize optimization efforts
+
+**Interpretation:**
+- < 5 seconds: Good
+- 5-15 seconds: Acceptable
+- 15-30 seconds: Needs optimization
+- > 30 seconds: Requires immediate attention
+
+### 7.9.2 Monitor Data Volume
+
+**Check query result size:**
+- Right-click query → Edit Query → Properties
+- View "Number of rows retrieved"
+
+**Guidelines:**
+- < 10,000 rows: No performance issues expected
+- 10,000-50,000 rows: Monitor performance
+- 50,000-100,000 rows: Optimization recommended
+- > 100,000 rows: Aggregation or filtering required
+
+### 7.9.3 Use WebI Profiler
+
+**For Advanced Optimization:**
+
+**Central Management Console → Enable Profiling**
+- Captures detailed performance metrics
+- Shows formula calculation time
+- Identifies bottlenecks
+- Helps pinpoint exact performance issues
+
+---
+
+## 7.10 Common Performance Anti-Patterns
+
+**Patterns to Avoid:**
+
+### Anti-Pattern 1: Report-Level Filters for Large Data
+
+```webi
+// BAD:
+// Query: Fetch all 500,000 incidents
+// Report Filter: [District] = "North"
+// Result: Fetch 500,000, use 50,000
+
+// GOOD:
+// Query Filter: [District] = "North"
+// Result: Fetch 50,000, use 50,000
+```
+
+### Anti-Pattern 2: Too Many Data Providers
+
+```webi
+// BAD: 8 separate queries with complex merging
+// GOOD: 2-3 queries with proper joins
+
+// Rule: If > 3 queries, reconsider data model
+```
+
+### Anti-Pattern 3: No Date Filters on Transactional Data
+
+```webi
+// BAD: Query all incidents from 2010-present (10M rows)
+// GOOD: Query incidents from last 90 days (50K rows)
+
+// Rule: Always filter transactional data by date
+```
+
+### Anti-Pattern 4: Complex String Manipulation
+
+```webi
+// BAD: Complex parsing in WebI
+Upper(Left([Address], Pos([Address], ",") - 1))
+
+// GOOD: Pre-calculate in database or universe
+[Street Name]  // Clean, indexed field
+```
+
+### Anti-Pattern 5: Full Scope of Analysis
+
+```webi
+// BAD: Scope = "All dimensions" when drilling not needed
+// GOOD: Scope = "None" or "Custom" with specific drill path
+```
+
+---
+
+## 7.11 Optimization Priority Matrix
+
+**Prioritize optimizations by impact vs effort:**
+
+### High Impact, Low Effort (Do First)
+1. Move filters to query level
+2. Limit date ranges
+3. Remove unused query objects
+4. Minimize scope of analysis
+5. Use breaks instead of multiple blocks
+
+### High Impact, Medium Effort
+1. Reduce number of queries
+2. Minimize merged dimensions
+3. Create helper variables for repeated calculations
+4. Optimize block structure
+
+### High Impact, High Effort
+1. Implement aggregate tables (requires DBA)
+2. Optimize universe joins (requires universe designer)
+3. Add database indexes (requires DBA)
+4. Implement query stripping
+
+### Medium Impact, Low Effort
+1. Use explicit context operators
+2. Simplify formulas
+3. Use appropriate chart types
+4. Clean up variable dependencies
+
+---
+
+## 7.12 Police Data Optimization Examples
+
+### Example 1: Daily Incident Dashboard
+
+**Original (Slow):**
+- 3 queries: Incidents, Officers, Districts
+- 2 merged dimensions
+- Report filters for date and district
+- Full scope of analysis
+- 15 separate blocks
+- Load time: 45 seconds
+
+**Optimized (Fast):**
+- 1 query with joined data
+- No merged dimensions
+- Query filters for date and district
+- Scope = "None" (no drilling)
+- 3 blocks with breaks
+- Load time: 4 seconds
+
+**Improvements:**
+- Moved filters to query level (-70% data)
+- Combined queries (-2 database hits)
+- Eliminated merging (-30% processing)
+- Reduced blocks (-50% rendering)
+- **Total improvement: 11x faster**
+
+### Example 2: Officer Performance Report
+
+**Original (Slow):**
+- Query: All incidents from 2020-present
+- No query filters
+- 50 columns in query (using 15)
+- Complex formulas repeated multiple times
+- Load time: 90 seconds
+
+**Optimized (Fast):**
+- Query: Incidents from last 12 months only
+- Query filters: Date, Status = "Closed"
+- 15 columns in query (exact match)
+- Helper variables for repeated calculations
+- Load time: 8 seconds
+
+**Improvements:**
+- Date filter (-95% data volume)
+- Status filter (-40% remaining data)
+- Removed unused columns (-30% memory)
+- Cached calculations (-20% processing)
+- **Total improvement: 11x faster**
+
+### Example 3: District Comparison Report
+
+**Original (Slow):**
+- 2 queries with district merged
+- Detail-level data aggregated in WebI
+- Report filter for date range
+- Load time: 60 seconds
+
+**Optimized (Fast):**
+- 1 query using aggregate table
+- Pre-aggregated at database level
+- Query filter for date range
+- Load time: 3 seconds
+
+**Improvements:**
+- Using aggregate table (-99% data volume)
+- Pre-aggregation at DB level (-80% WebI processing)
+- Moved filter to query level (-50% network transfer)
+- **Total improvement: 20x faster**
+
+---
+
 
 
