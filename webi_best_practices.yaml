@@ -1,0 +1,172 @@
+metadata:
+  title: SAP BusinessObjects Web Intelligence Best Practices
+  format: YAML
+  created: '2025-11-21'
+  description: Comprehensive guide to WebI best practices, formulas, and optimization
+    techniques
+sections:
+  variable_qualification:
+    title: Variable Qualification Types
+    types:
+      dimension:
+        description: For categorical data and grouping
+        use_cases:
+        - Categorical data
+        - Grouping
+        - Breaks and sections
+        - Drill analysis
+        example: If [Revenue] >= 1000000 Then "High" Else "Low"
+        qualification: Dimension
+        when_to_use: Text-based conditionals, status flags, categories
+      measure:
+        description: For numeric calculations and aggregations
+        use_cases:
+        - KPIs
+        - Percentages
+        - Ratios
+        - Aggregates
+        example: '[Sales Revenue] / [Quantity Sold]'
+        qualification: Measure
+        when_to_use: Numeric results that need aggregation
+      detail:
+        description: For additional information without aggregation
+        use_cases:
+        - Associated text
+        - Reference data
+        - Avoid aggregation
+        example: '[Customer Name]'
+        qualification: Detail
+        when_to_use: When you need data to appear as-is without summing
+  context_operators:
+    title: Calculation Context Operators
+    IN:
+      syntax: '[Measure] In ([Dimension1]; [Dimension2])'
+      purpose: Explicitly specify dimensions for calculation
+      example: Max([Revenue]) In ([State]; [Year])
+      difficulty: intermediate
+      best_for: When you know exact dimensions needed
+    ForEach:
+      syntax: '[Measure] ForEach([AdditionalDimension])'
+      purpose: Add dimensions to default context
+      example: Max([Sales]) ForEach([Quarter])
+      difficulty: intermediate
+      best_for: Dimensions in query but not displayed
+    ForAll:
+      syntax: '[Measure] ForAll([DimensionToRemove])'
+      purpose: Remove dimensions from context
+      example: Sum([Sales]) ForAll([Quarter])
+      difficulty: intermediate
+      best_for: Higher-level aggregation
+    Where:
+      syntax: '[Measure] Where ([Condition] = "Value")'
+      purpose: Filter data during calculation
+      example: Sum([Revenue]) Where ([Country] = "US")
+      difficulty: beginner
+      limitation: Right side must be constant, not dynamic field
+  common_formulas:
+    title: Common Formula Patterns
+    conditional:
+      simple_if:
+        code: If [Days Overdue] > 30 Then "Urgent" Else "Normal"
+        use: Simple categorization
+      nested_if:
+        code: If [Revenue] < 10000 Then "Low" ElseIf [Revenue] < 50000 Then "Medium"
+          Else "High"
+        use: Multi-level categorization
+      complex_and:
+        code: If [Sales] > 1000000 And [Margin] > 0.2 Then "Gold" Else "Standard"
+        use: Multiple criteria check
+      or_logic:
+        code: If [Status] = "Urgent" Or [Days Overdue] > 60 Then "Priority" Else "Normal"
+        use: Any-condition check
+    time_series:
+      previous:
+        code: Previous([Revenue])
+        use: Previous period value
+      running_sum:
+        code: RunningSum([Revenue])
+        use: Cumulative total
+      month_over_month:
+        code: If IsNull(Previous([Revenue])) Or Previous([Revenue]) = 0 Then 0 Else
+          (([Revenue] - Previous([Revenue])) / Previous([Revenue])) * 100
+        use: Percent change
+      ytd:
+        code: Sum([Revenue]) Where ([Date] >= RelativeDate(CurrentDate(); -365))
+        use: Year-to-date total
+    string:
+      concatenate:
+        code: '[First Name] + " " + [Last Name]'
+        use: Join strings
+      left:
+        code: Left([Account]; 3)
+        use: First 3 characters
+      right:
+        code: Right([Phone]; 4)
+        use: Last 4 characters
+      mid:
+        code: Substr([ID]; 5; 4)
+        use: Characters 5-8
+      replace:
+        code: Replace([Phone]; "-"; "")
+        use: Remove characters
+      upper:
+        code: Upper([Name])
+        use: Uppercase conversion
+      position:
+        code: Pos([Email]; "@")
+        use: Find character position
+    aggregates:
+      sum:
+        code: Sum([Revenue])
+        description: Total of values
+      count:
+        code: Count([ID])
+        description: Number of records
+      count_distinct:
+        code: Count([ID]; Distinct)
+        description: Unique values only
+      average:
+        code: Average([Revenue])
+        description: Mean value
+      min_max:
+        code: Min([Revenue]) and Max([Revenue])
+        description: Minimum and maximum
+      conditional_sum:
+        code: Sum([Revenue]) Where ([Value] > 10000)
+        description: Conditional total
+  optimization:
+    title: Performance Optimization
+    query_filters:
+      advantage: Applied at database - faster
+      use_when: Fixed requirements, large datasets
+      vs_report_filter: Query filters 10-100x faster
+    scope_of_analysis:
+      none:
+        performance: best
+        drilling: disabled
+      one_level:
+        performance: good
+        drilling: limited
+      custom:
+        performance: variable
+        drilling: optimized
+    remove_unused:
+      items:
+      - Remove unused variables
+      - Remove unused query objects
+      - Minimize merged dimensions
+      - Limit data providers to <5
+  errors:
+    title: Common Errors and Solutions
+    '#MULTIVALUE':
+      cause: Formula returns multiple values
+      solution: Add dimension to block or use ForEach
+    '#DIV/0':
+      cause: Division by zero
+      solution: If [Denom] <> 0 Then [Numer]/[Denom] Else 0
+    '#COMPUTATION':
+      cause: Missing dimension in context
+      solution: Ensure all context dimensions in block
+    '#INCOMPATIBLE':
+      cause: Incompatible dimensions
+      solution: Merge dimensions from different providers

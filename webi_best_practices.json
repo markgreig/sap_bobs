@@ -1,0 +1,1158 @@
+{
+  "metadata": {
+    "title": "SAP BusinessObjects Web Intelligence - Best Practices & Examples",
+    "version": "1.0",
+    "created": "2025-11-21T10:26:50.858793",
+    "language": "en",
+    "target_audience": [
+      "developers",
+      "business_analysts",
+      "report_designers"
+    ],
+    "domains": [
+      "data_analysis",
+      "business_intelligence",
+      "reporting"
+    ]
+  },
+  "sections": {
+    "1_variable_creation": {
+      "title": "Variable Creation and Management",
+      "subsections": {
+        "1_1_naming_conventions": {
+          "title": "Naming Conventions",
+          "best_practice": "Use consistent naming conventions with prefixes to distinguish report variables from universe objects",
+          "impact": "high",
+          "difficulty": "beginner",
+          "examples": [
+            {
+              "pattern": "var_TotalRevenue",
+              "type": "measure",
+              "description": "Variable naming with prefix"
+            },
+            {
+              "pattern": "var_PreviousYearSales",
+              "type": "measure",
+              "description": "Time-based measure"
+            },
+            {
+              "pattern": "dim_CustomDate",
+              "type": "dimension",
+              "description": "Dimension naming convention"
+            },
+            {
+              "pattern": "msr_AverageSales",
+              "type": "measure",
+              "description": "Measure naming convention"
+            }
+          ],
+          "why_important": "Immediately identifies report-level variables, prevents confusion with universe objects, makes formulas easier to read and debug"
+        },
+        "1_2_variable_qualification": {
+          "title": "Variable Qualification",
+          "description": "Variables can be qualified as Dimension, Measure, or Detail. Understanding when to use each is critical.",
+          "qualification_types": {
+            "dimension": {
+              "title": "Dimension Variables",
+              "use_cases": [
+                "Categorical data or grouping",
+                "Can be used in breaks, sections, and drill analysis",
+                "Calculated categories"
+              ],
+              "example_code": "If [Revenue] >= 1000000 Then \"High\" ElseIf [Revenue] >= 500000 Then \"Medium\" Else \"Low\"",
+              "example_name": "var_RevenueCategory",
+              "when_to_use": "When you need to group or categorize data",
+              "common_error": "Setting a text-based conditional variable as a Measure causes #MULTIVALUE errors"
+            },
+            "measure": {
+              "title": "Measure Variables",
+              "use_cases": [
+                "Numeric calculations and aggregations",
+                "Automatically aggregate based on dimensions in the block",
+                "KPIs, calculated metrics"
+              ],
+              "example_code": "[Sales Revenue] / [Quantity Sold]",
+              "example_name": "var_RevenuePerItem",
+              "when_to_use": "When you need numeric results that aggregate",
+              "performance_note": "Measures are aggregated by WebI engine - more efficient than calculated cells"
+            },
+            "detail": {
+              "title": "Detail Variables",
+              "use_cases": [
+                "Associate additional information with dimensions",
+                "Cannot be used for drilling or as merged dimensions",
+                "Converting a dimension to detail to avoid aggregation issues"
+              ],
+              "example_code": "[Customer Name]",
+              "example_name": "var_CustomerDetail",
+              "when_to_use": "When you need additional info without aggregation"
+            }
+          }
+        },
+        "1_3_division_safety": {
+          "title": "Division Safety",
+          "best_practice": "Always check for zero denominators to avoid #DIV/0 errors",
+          "difficulty": "beginner",
+          "impact": "high",
+          "examples": [
+            {
+              "name": "var_SafeMargin",
+              "code": "If [Cost] <> 0 Then ([Revenue] - [Cost]) / [Cost] Else 0",
+              "description": "Basic zero-check pattern",
+              "use_case": "Margin calculation"
+            },
+            {
+              "name": "var_RevenuePerUnit",
+              "code": "If IsNull([Units Sold]) Or [Units Sold] = 0 Then 0 Else [Revenue] / [Units Sold]",
+              "description": "Handles both null and zero values",
+              "use_case": "Revenue per unit calculation"
+            }
+          ]
+        }
+      }
+    },
+    "2_calculation_contexts": {
+      "title": "Calculation Contexts: The Foundation",
+      "subsections": {
+        "2_1_default_context": {
+          "title": "Default Context",
+          "description": "Every measure has a default calculation context determined by the dimensions in the block",
+          "concept": "The WebI engine automatically determines which dimensions to use for aggregation based on what's displayed in the report block",
+          "example": {
+            "block_structure": [
+              {
+                "Year": 2023,
+                "Quarter": "Q1",
+                "Sales Revenue": 100000
+              },
+              {
+                "Year": 2023,
+                "Quarter": "Q2",
+                "Sales Revenue": 150000
+              }
+            ],
+            "default_context": "In ([Year]; [Quarter])",
+            "explanation": "Revenue is calculated for each Year-Quarter combination"
+          }
+        },
+        "2_2_input_context_operators": {
+          "title": "Input Context Operators",
+          "operators": {
+            "IN": {
+              "title": "The IN Operator",
+              "syntax": "[Measure] In ([Dimension1]; [Dimension2])",
+              "purpose": "Explicitly specifies which dimensions to use in the calculation",
+              "difficulty": "intermediate",
+              "example": {
+                "code": "Max([Revenue]) In ([State]; [Year])",
+                "description": "Maximum revenue by state and year",
+                "scenario": "Report shows Store, State, Year, and Revenue. Want max revenue per state per year regardless of store"
+              },
+              "when_to_use": "When you know exactly which dimensions should affect the calculation"
+            },
+            "FOREACH": {
+              "title": "The ForEach Operator",
+              "syntax": "[Measure] ForEach ([AdditionalDimension])",
+              "purpose": "Adds dimensions to the default context",
+              "difficulty": "intermediate",
+              "examples": [
+                {
+                  "code": "Max([Sales Revenue]) ForEach ([Quarter])",
+                  "description": "Maximum quarterly sales",
+                  "scenario": "Report shows Year and Revenue. Quarter available in query but not displayed. Calculate at Quarter level without adding to table"
+                },
+                {
+                  "code": "ToNumber([Monthly Target]) ForAll([Year]; [Store]) ForEach([Month])",
+                  "description": "Complex example combining ForAll and ForEach",
+                  "scenario": "Calculate monthly target exclusively in Month context, removing Year and Store"
+                }
+              ],
+              "when_to_use": "When you need to include dimensions not shown in the report"
+            },
+            "FORALL": {
+              "title": "The ForAll Operator",
+              "syntax": "[Measure] ForAll ([DimensionToRemove])",
+              "purpose": "Removes dimensions from the default context",
+              "difficulty": "intermediate",
+              "example": {
+                "code": "Sum([Sales Revenue]) ForAll([Quarter])",
+                "description": "Total revenue by year excluding quarter",
+                "scenario": "Block contains Year, Quarter, and Revenue. Want total for entire year in each row",
+                "expected_result": [
+                  {
+                    "Year": 2023,
+                    "Quarter": "Q1",
+                    "Revenue": 100000,
+                    "var_YearTotal": 600000
+                  },
+                  {
+                    "Year": 2023,
+                    "Quarter": "Q2",
+                    "Revenue": 150000,
+                    "var_YearTotal": 600000
+                  },
+                  {
+                    "Year": 2023,
+                    "Quarter": "Q3",
+                    "Revenue": 175000,
+                    "var_YearTotal": 600000
+                  },
+                  {
+                    "Year": 2023,
+                    "Quarter": "Q4",
+                    "Revenue": 175000,
+                    "var_YearTotal": 600000
+                  }
+                ]
+              },
+              "when_to_use": "When you need aggregation at a higher level than displayed"
+            },
+            "WHERE": {
+              "title": "The WHERE Operator",
+              "syntax": "[Measure] Where ([Condition] = \"Value\")",
+              "purpose": "Filters data within a calculation",
+              "difficulty": "intermediate",
+              "examples": [
+                {
+                  "code": "Sum([Revenue]) Where ([Country] = \"US\")",
+                  "description": "US revenue only",
+                  "use_case": "Filter during calculation"
+                },
+                {
+                  "code": "Sum([Revenue]) Where ([Country] = \"US\" And [Order Value] > 5000)",
+                  "description": "Multiple conditions",
+                  "use_case": "High-value US orders"
+                },
+                {
+                  "code": "Sum([Revenue]) Where ([Category] = \"Electronics\") ForEach([Year])",
+                  "description": "Combined with ForEach",
+                  "use_case": "Electronics revenue by year"
+                }
+              ],
+              "limitation": "Requires a constant on the right side of comparison. Cannot use another dynamic field directly"
+            }
+          }
+        },
+        "2_3_output_context": {
+          "title": "Output Context Keywords",
+          "description": "Control where calculation results are displayed",
+          "keywords": {
+            "REPORT": {
+              "syntax": "Sum([Revenue]) In Report",
+              "scope": "Entire document",
+              "use_case": "Grand totals across all pages"
+            },
+            "SECTION": {
+              "syntax": "Sum([Revenue]) In Section",
+              "scope": "Current section",
+              "use_case": "Section-level subtotals"
+            },
+            "BLOCK": {
+              "syntax": "Sum([Revenue]) In Block",
+              "scope": "Current table",
+              "use_case": "Table-level calculations"
+            },
+            "BODY": {
+              "syntax": "Sum([Revenue]) In Body",
+              "scope": "Individual cells (default)",
+              "use_case": "Cell-level calculations"
+            }
+          },
+          "practical_example": {
+            "name": "var_PercentOfTotal",
+            "code": "([Sales Revenue] / Sum([Sales Revenue]) In Report) * 100",
+            "description": "Each row's percentage of grand total",
+            "calculation": "Divides each sales value by report-level total to get percentage"
+          }
+        }
+      }
+    },
+    "3_formula_patterns": {
+      "title": "Common Formula Patterns and Examples",
+      "subsections": {
+        "3_1_conditional_logic": {
+          "title": "Conditional Logic",
+          "patterns": [
+            {
+              "name": "Simple If Statement",
+              "code": "If [Days Overdue] > 30 Then \"Urgent\" Else \"Normal\"",
+              "complexity": "beginner",
+              "use_case": "Status classification"
+            },
+            {
+              "name": "Nested If Statements",
+              "code": "If [Revenue] < 10000 Then \"Low\"\nElseIf [Revenue] < 50000 Then \"Medium\"\nElseIf [Revenue] < 100000 Then \"High\"\nElse \"Critical\"",
+              "complexity": "intermediate",
+              "use_case": "Multi-level categorization"
+            },
+            {
+              "name": "Complex Conditional with Multiple Criteria",
+              "code": "If [Sales] > 1000000 And [Margin] > 0.2 Then \"Gold\"\nElseIf [Sales] > 500000 And [Margin] > 0.15 Then \"Silver\"\nElseIf [Sales] > 100000 Then \"Bronze\"\nElse \"Standard\"",
+              "complexity": "intermediate",
+              "use_case": "Customer segmentation"
+            },
+            {
+              "name": "Using OR Logic",
+              "code": "If [Status] = \"Urgent\" Or [Days Overdue] > 60 Or [Amount] > 100000 Then \"Yes\" Else \"No\"",
+              "complexity": "intermediate",
+              "use_case": "Multiple condition check"
+            }
+          ]
+        },
+        "3_2_previous_and_running": {
+          "title": "Previous Function and Running Calculations",
+          "patterns": [
+            {
+              "name": "Previous Function",
+              "code": "Previous([Revenue])",
+              "description": "Returns the previous value in a series",
+              "use_case": "Month-over-month comparison",
+              "requires": "Proper sort order on dimension"
+            },
+            {
+              "name": "Running Sum",
+              "code": "RunningSum([Revenue])",
+              "description": "Cumulative total",
+              "use_case": "Progressive totals over time"
+            },
+            {
+              "name": "Running Sum with Reset",
+              "code": "RunningSum([Revenue]; ([Year]))",
+              "description": "Running sum that resets at each new year",
+              "use_case": "Yearly progressive totals"
+            },
+            {
+              "name": "Running Sum in Crosstab",
+              "code": "RunningSum([Measure]; Col; [Dimension])",
+              "description": "Crosstab-specific running sum",
+              "use_case": "Matrix reports"
+            },
+            {
+              "name": "Month-over-Month Change",
+              "code": "[Revenue] - Previous([Revenue])",
+              "description": "Absolute change",
+              "use_case": "Period change"
+            },
+            {
+              "name": "Month-over-Month Change Percentage",
+              "code": "If IsNull(Previous([Revenue])) Or Previous([Revenue]) = 0 Then 0 Else (([Revenue] - Previous([Revenue])) / Previous([Revenue])) * 100",
+              "description": "Percentage change with zero-check",
+              "use_case": "Growth rate calculation"
+            }
+          ]
+        },
+        "3_3_time_intelligence": {
+          "title": "Time Intelligence Functions",
+          "patterns": [
+            {
+              "name": "Year-to-Date (YTD)",
+              "code": "Sum([Sales Revenue]) Where ([Date] >= RelativeDate(CurrentDate(); -365) And [Date] <= CurrentDate())",
+              "description": "Sales from start of year to today",
+              "use_case": "YTD tracking"
+            },
+            {
+              "name": "Current Year Filter",
+              "code": "If Year([Date]) = Year(CurrentDate()) Then [Revenue] Else 0",
+              "description": "Include only current year data",
+              "use_case": "Year filtering"
+            },
+            {
+              "name": "Previous Year Same Period",
+              "code": "Sum([Sales Revenue]) Where (Year([Date]) = Year(CurrentDate()) - 1 And Month([Date]) <= Month(CurrentDate()))",
+              "description": "Prior year sales up to current month",
+              "use_case": "Year-over-year comparison"
+            },
+            {
+              "name": "Quarter Calculation",
+              "code": "\"Q\" + FormatNumber(Ceil(Month(CurrentDate()) / 3); \"0\")",
+              "description": "Current quarter",
+              "use_case": "Quarter identification"
+            },
+            {
+              "name": "Quarter Start Date",
+              "code": "If Month([Date]) In (1;2;3) Then ToDate(\"01/01/\" + FormatNumber(Year([Date]); \"0000\"); \"dd/MM/yyyy\")\nElseIf Month([Date]) In (4;5;6) Then ToDate(\"01/04/\" + FormatNumber(Year([Date]); \"0000\"); \"dd/MM/yyyy\")\nElseIf Month([Date]) In (7;8;9) Then ToDate(\"01/07/\" + FormatNumber(Year([Date]); \"0000\"); \"dd/MM/yyyy\")\nElse ToDate(\"01/10/\" + FormatNumber(Year([Date]); \"0000\"); \"dd/MM/yyyy\")",
+              "description": "First day of quarter",
+              "use_case": "Quarter boundaries"
+            },
+            {
+              "name": "RelativeDate - Add Days",
+              "code": "RelativeDate([Order Date]; 7)",
+              "description": "Add 7 days",
+              "use_case": "Future date calculation"
+            },
+            {
+              "name": "RelativeDate - Subtract Days",
+              "code": "RelativeDate(CurrentDate(); -30)",
+              "description": "30 days ago",
+              "use_case": "Historical date"
+            },
+            {
+              "name": "RelativeDate - Using Period Types",
+              "code": "RelativeDate(CurrentDate(); -1; MonthPeriod)",
+              "description": "Last month (WebI 4.2+)",
+              "requires": "WebI 4.2 or higher"
+            },
+            {
+              "name": "Previous Working Day",
+              "code": "If DayName(CurrentDate()) = \"Monday\" Then RelativeDate(CurrentDate(); -3)\nElseIf DayName(CurrentDate()) = \"Sunday\" Then RelativeDate(CurrentDate(); -2)\nElse RelativeDate(CurrentDate(); -1)",
+              "description": "Previous business day",
+              "use_case": "Working day calculations"
+            }
+          ]
+        },
+        "3_4_string_manipulation": {
+          "title": "String Manipulation",
+          "patterns": [
+            {
+              "name": "Concatenation",
+              "code": "[First Name] + \" \" + [Last Name]",
+              "description": "Join strings",
+              "output_example": "John Doe"
+            },
+            {
+              "name": "Address Concatenation",
+              "code": "[Street] + \", \" + [City] + \", \" + [Postal Code]",
+              "description": "Full address string",
+              "output_example": "123 Main St, Springfield, 12345"
+            },
+            {
+              "name": "Left Function",
+              "code": "Left([Account Number]; 3)",
+              "description": "First 3 characters",
+              "use_case": "Prefix extraction"
+            },
+            {
+              "name": "Right Function",
+              "code": "Right([Credit Card]; 4)",
+              "description": "Last 4 characters",
+              "use_case": "Suffix extraction"
+            },
+            {
+              "name": "Mid Function",
+              "code": "Substr([ID Number]; 5; 4)",
+              "description": "Characters 5-8 (start at pos 5, extract 4)",
+              "use_case": "Middle section extraction"
+            },
+            {
+              "name": "String Replacement",
+              "code": "Replace([Phone]; \"-\"; \"\")",
+              "description": "Remove hyphens",
+              "output_example": "5551234567"
+            },
+            {
+              "name": "Masked SSN",
+              "code": "Left([SSN]; 3) + \"-XX-\" + Right([SSN]; 4)",
+              "description": "Partially masked",
+              "output_example": "123-XX-4567"
+            },
+            {
+              "name": "Upper Case",
+              "code": "Upper([Customer Name])",
+              "description": "Convert to uppercase"
+            },
+            {
+              "name": "Lower Case",
+              "code": "Lower([Email])",
+              "description": "Convert to lowercase"
+            },
+            {
+              "name": "Proper Case",
+              "code": "InitCap([Product Name])",
+              "description": "Title case"
+            },
+            {
+              "name": "Find Text Position",
+              "code": "Pos([Email]; \"@\")",
+              "description": "Position of @ symbol",
+              "use_case": "Email parsing"
+            },
+            {
+              "name": "Extract Domain",
+              "code": "Right([Email]; Length([Email]) - Pos([Email]; \"@\"))",
+              "description": "Email domain extraction",
+              "output_example": "example.com"
+            },
+            {
+              "name": "Date from String",
+              "code": "ToDate(Left([Text Field]; 10); \"yyyy-MM-dd\")",
+              "description": "Parse date string"
+            }
+          ]
+        },
+        "3_5_aggregation_functions": {
+          "title": "Aggregation Functions",
+          "patterns": [
+            {
+              "name": "Sum",
+              "code": "Sum([Revenue])",
+              "description": "Total of values"
+            },
+            {
+              "name": "Count",
+              "code": "Count([Customer ID])",
+              "description": "Number of records"
+            },
+            {
+              "name": "Average",
+              "code": "Average([Revenue])",
+              "description": "Mean value"
+            },
+            {
+              "name": "Distinct Count",
+              "code": "Count([Customer ID]; Distinct)",
+              "description": "Unique values only"
+            },
+            {
+              "name": "Min",
+              "code": "Min([Revenue])",
+              "description": "Minimum value"
+            },
+            {
+              "name": "Max",
+              "code": "Max([Revenue])",
+              "description": "Maximum value"
+            },
+            {
+              "name": "Date Range",
+              "code": "FormatDate(Min([Order Date]); \"dd/MM/yyyy\") + \" to \" + FormatDate(Max([Order Date]); \"dd/MM/yyyy\")",
+              "description": "Date range as string"
+            },
+            {
+              "name": "Conditional Sum",
+              "code": "Sum([Revenue]) Where ([Order Value] > 10000)",
+              "description": "Sum only matching values"
+            },
+            {
+              "name": "Conditional Count",
+              "code": "Count([Order ID]) Where ([Status] = \"Complete\")",
+              "description": "Count matching records"
+            }
+          ]
+        }
+      }
+    },
+    "4_query_optimization": {
+      "title": "Query Optimization",
+      "subsections": {
+        "4_1_filter_strategy": {
+          "title": "Query Filters vs Report Filters",
+          "best_practice": "Use query filters instead of report filters whenever possible",
+          "comparison": {
+            "query_filter": {
+              "definition": "Applied at database, limits data transferred",
+              "performance": "Fast - reduces data volume",
+              "use_when": "Fixed requirements, prompts, large datasets",
+              "example": "Object: [Year], Operator: Equal to, Value: Prompt"
+            },
+            "report_filter": {
+              "definition": "Applied in WebI after data retrieval",
+              "performance": "Slow - retrieves all data first",
+              "use_when": "Interactive analysis, small datasets",
+              "example": "Manual filtering in report"
+            }
+          },
+          "performance_impact": "Query filters can be 10-100x faster for large datasets"
+        },
+        "4_2_prompts": {
+          "title": "Prompts Best Practices",
+          "examples": [
+            {
+              "name": "Basic Universe Prompt",
+              "code": "@Prompt('Enter Fiscal Year:','A','Fiscal Year',mono,constrained)",
+              "syntax": "@Prompt(description, type, dimension, multiplicity, persistence)"
+            },
+            {
+              "name": "Extended Prompt Syntax",
+              "code": "@Prompt('Select Products','A','Product\\\\Product Name',multi,free,Not_Persistent,,User:1)",
+              "parameters": {
+                "Not_Persistent": "Doesn't keep last value",
+                "User:1": "Defines prompt order"
+              }
+            }
+          ],
+          "best_practice": "Use Not_Persistent to prevent stale filter values from previous executions"
+        },
+        "4_3_array_fetch_size": {
+          "title": "Array Fetch Size Optimization",
+          "definition": "Number of rows fetched from database at once",
+          "guidelines": [
+            {
+              "dataset_size": "small",
+              "recommended_value": "100-500"
+            },
+            {
+              "dataset_size": "medium",
+              "recommended_value": "500-2000"
+            },
+            {
+              "dataset_size": "large",
+              "recommended_value": "2000-5000"
+            }
+          ],
+          "tradeoff": "Higher values reduce database interactions but increase memory usage"
+        },
+        "4_4_query_stripping": {
+          "title": "Query Stripping (OLAP Only)",
+          "best_practice": "Enable query stripping for OLAP universes",
+          "what_it_does": "Only fetches objects that are directly or indirectly displayed in the report",
+          "implementation": [
+            "Query-level: Query Properties \u2192 Enable Query Stripping",
+            "Document-level: Document Properties \u2192 Enable Query Stripping"
+          ],
+          "performance_gain": "Significant when many objects in query but few used in report"
+        },
+        "4_5_scope_of_analysis": {
+          "title": "Scope of Analysis",
+          "best_practice": "Set appropriate scope of analysis levels to balance drilling capability with performance",
+          "options": [
+            {
+              "level": "None",
+              "description": "Disables drilling",
+              "performance": "Best",
+              "use_case": "Static reports"
+            },
+            {
+              "level": "One/Two/Three Levels",
+              "description": "Pre-fetches 1-3 levels below selected objects",
+              "performance": "Good",
+              "use_case": "Limited drilling"
+            },
+            {
+              "level": "Custom",
+              "description": "Manually specify which objects to include",
+              "performance": "Variable",
+              "use_case": "Specific drill paths"
+            }
+          ],
+          "impact": "With scope: Fast drill but slower initial query; Without scope: Fast initial but each drill hits database"
+        }
+      }
+    },
+    "5_performance_optimization": {
+      "title": "Performance Optimization",
+      "subsections": {
+        "5_1_universe_design": {
+          "title": "Aggregate Awareness",
+          "what_it_is": "Directs queries to summary tables instead of detail tables",
+          "example_code": "@Aggregate_Aware(\n    sum(Sales_Yearly.Amount),\n    sum(Sales_Monthly.Amount),\n    sum(Sales_Daily.Amount)\n)",
+          "note": "Order from most aggregated to least aggregated",
+          "setup": "Mark which objects are incompatible with which tables",
+          "performance_gain": "Dramatic when reporting at aggregated levels"
+        },
+        "5_2_report_optimizations": {
+          "title": "Report-Level Optimizations",
+          "techniques": [
+            {
+              "technique": "Remove Unused Variables",
+              "description": "Use tools like 360Eyes to identify and remove",
+              "impact": "medium"
+            },
+            {
+              "technique": "Remove Unused Objects from Queries",
+              "description": "Every object in query is fetched from database",
+              "impact": "high"
+            },
+            {
+              "technique": "Avoid Merged Dimensions",
+              "description": "Merged dimensions add complexity",
+              "impact": "medium",
+              "when_to_use": "Merge only when necessary"
+            },
+            {
+              "technique": "Limit ForEach and ForAll Usage",
+              "description": "Powerful but add calculation overhead",
+              "impact": "medium"
+            },
+            {
+              "technique": "Prefer In Over ForEach/ForAll",
+              "description": "When you know exactly which dimensions, use In",
+              "impact": "small"
+            }
+          ]
+        },
+        "5_3_multiple_data_providers": {
+          "title": "Multiple Data Providers",
+          "best_practice": "Use multiple queries strategically",
+          "use_cases": [
+            "Data from different universes",
+            "Different granularities of same data",
+            "Comparing different time periods"
+          ],
+          "synchronization": "Merge common dimensions to synchronize data providers",
+          "limitation": "Avoid excessive providers (>5) as it impacts performance"
+        },
+        "5_4_drilling_performance": {
+          "title": "Drilling Performance",
+          "comparison": {
+            "query_drill": {
+              "description": "Re-queries database with additional filter",
+              "pros": [
+                "Smaller document size"
+              ],
+              "cons": [
+                "Slower drill"
+              ],
+              "best_for": "Web-based users with good connectivity"
+            },
+            "standard_drill": {
+              "description": "Uses scope of analysis to pre-fetch data",
+              "pros": [
+                "Fast drilling"
+              ],
+              "cons": [
+                "Larger document"
+              ],
+              "best_for": "Desktop users, responsive drill experience"
+            }
+          }
+        },
+        "5_5_chart_optimization": {
+          "title": "Chart Optimization",
+          "guidelines": [
+            {
+              "guideline": "Data Point Limit",
+              "value": "<100 data points",
+              "reason": "Optimal rendering"
+            },
+            {
+              "guideline": "Bar/Column Charts",
+              "value": "<20 categories",
+              "use_case": "Comparisons"
+            },
+            {
+              "guideline": "Line Charts",
+              "use_case": "Trends over time"
+            },
+            {
+              "guideline": "Pie Charts",
+              "value": "<7 slices",
+              "use_case": "Part-to-whole"
+            }
+          ]
+        }
+      }
+    },
+    "6_report_structure": {
+      "title": "Report Structure Best Practices",
+      "subsections": {
+        "6_1_breaks_vs_sections": {
+          "title": "Breaks vs Sections",
+          "breaks": {
+            "definition": "Operate within a single table",
+            "use_cases": [
+              "Simple grouping",
+              "Subtotals",
+              "Limited scope changes"
+            ],
+            "best_for": "Table-level organization",
+            "example": "Break on [Year] for annual subtotals"
+          },
+          "sections": {
+            "definition": "Divide entire report horizontally",
+            "use_cases": [
+              "Separate pages",
+              "Multiple tables per group",
+              "Navigation"
+            ],
+            "best_for": "Page-level organization",
+            "example": "Section on [Region] for separate areas"
+          }
+        },
+        "6_2_sorting_ranking": {
+          "title": "Sorting and Ranking",
+          "patterns": [
+            {
+              "name": "Custom Sorts",
+              "description": "Define specific sort orders for non-alphabetical",
+              "best_practice": "Apply at query level when possible"
+            },
+            {
+              "name": "Simple Ranking",
+              "code": "Rank([Revenue])",
+              "description": "Overall ranking"
+            },
+            {
+              "name": "Ranking Within Group",
+              "code": "Rank([Revenue]) In ([Year])",
+              "description": "Rank per year"
+            },
+            {
+              "name": "Top N",
+              "description": "Set ranking limit to display only top 10"
+            }
+          ]
+        },
+        "6_3_conditional_formatting": {
+          "title": "Conditional Formatting and Alerters",
+          "patterns": [
+            {
+              "name": "Basic Rule",
+              "structure": {
+                "filter_object": "[Revenue]",
+                "operator": "Greater than",
+                "operand": 1000000,
+                "format": "Background color = Green"
+              }
+            },
+            {
+              "name": "Multiple Conditions",
+              "conditions": [
+                {
+                  "condition": "Revenue >= 9000000",
+                  "format": "Green"
+                },
+                {
+                  "condition": "Revenue >= 5000000",
+                  "format": "Yellow"
+                },
+                {
+                  "condition": "Revenue < 5000000",
+                  "format": "Red"
+                }
+              ]
+            },
+            {
+              "name": "Formula-Based",
+              "code": "If [Margin %] < 0 Then \"Red\" ElseIf [Margin %] < 10 Then \"Yellow\" Else \"Green\"",
+              "description": "Dynamic formatting"
+            }
+          ]
+        }
+      }
+    },
+    "7_advanced_functions": {
+      "title": "Advanced Functions",
+      "subsections": {
+        "7_1_nofilter": {
+          "title": "NoFilter Function",
+          "purpose": "Ignores filters to include all data in calculations",
+          "syntax": "NoFilter([Measure]) / NoFilter([Measure]; All) / NoFilter([Measure]; Drill)",
+          "use_case": "Percentage of total when report filters applied",
+          "example": {
+            "code": "var_PercentOfUnfilteredTotal = [Revenue] / NoFilter(Sum([Revenue])) * 100",
+            "scenario": "Report filtered to US sales, but show US as % of global"
+          },
+          "options": [
+            {
+              "option": "Not specified",
+              "ignores": "Report and block filters"
+            },
+            {
+              "option": "All",
+              "ignores": "All filters including drill"
+            },
+            {
+              "option": "Drill",
+              "ignores": "Report and drill filters only"
+            }
+          ]
+        },
+        "7_2_formatting_functions": {
+          "title": "Formatting Functions",
+          "patterns": [
+            {
+              "name": "FormatNumber",
+              "examples": [
+                {
+                  "code": "FormatNumber([Revenue]; \"#,##0.00\")",
+                  "output": "1,234,567.89"
+                },
+                {
+                  "code": "FormatNumber([Margin] * 100; \"0.00\") + \"%\"",
+                  "output": "15.50%"
+                },
+                {
+                  "code": "FormatNumber([Amount]; \"$#,##0.00\")",
+                  "output": "$1,234.56"
+                }
+              ]
+            },
+            {
+              "name": "FormatDate",
+              "examples": [
+                {
+                  "code": "FormatDate([Order Date]; \"dd/MM/yyyy\")",
+                  "output": "25/12/2023"
+                },
+                {
+                  "code": "FormatDate([Date]; \"MMMM yyyy\")",
+                  "output": "December 2023"
+                },
+                {
+                  "code": "FormatDate([Date]; \"dd-MMM-yy\")",
+                  "output": "25-Dec-23"
+                }
+              ]
+            },
+            {
+              "name": "Type Conversion",
+              "examples": [
+                {
+                  "code": "ToNumber([Text Field])",
+                  "description": "String to number"
+                },
+                {
+                  "code": "ToDate([Date String]; \"yyyy-MM-dd\")",
+                  "description": "String to date"
+                },
+                {
+                  "code": "\"\" + [Numeric Field]",
+                  "description": "Number to string"
+                }
+              ]
+            }
+          ]
+        },
+        "7_3_hyperlinks": {
+          "title": "Hyperlinks and Document Linking",
+          "types": [
+            {
+              "type": "Same Document",
+              "implementation": "Right-click cell \u2192 Add Hyperlink \u2192 This Document",
+              "use_case": "Navigate between report tabs"
+            },
+            {
+              "type": "OpenDocument Link",
+              "purpose": "Link to other WebI documents with parameters",
+              "template": "=\"<a href='http://server:port/BOE/OpenDocument/opendoc/openDocument.jsp?sType=wid&sDocName=Target Report&lsSPrompt:='\" + URLEncode([Parameter Value]) + \"'>Link Text</a>\"",
+              "parameters": {
+                "sType": "wid (Web Intelligence document)",
+                "sDocName": "Target document name",
+                "sPath": "Folder path",
+                "lsSPrompt": "Single-value prompt",
+                "lsMPrompt": "Multi-value prompt"
+              }
+            }
+          ],
+          "example": {
+            "code": "=\"<a href='http://boserver:8080/BOE/OpenDocument/opendoc/openDocument.jsp?sType=wid&sDocName=CustomerDetail&lsSCustomer ID:='\" + URLEncode([Customer ID]) + \"'>\" + [Customer Name] + \"</a>\"",
+            "description": "Customer detail drill-through link"
+          },
+          "best_practice": "Use URLEncode() for parameter values"
+        }
+      }
+    },
+    "8_error_handling": {
+      "title": "Troubleshooting Common Errors",
+      "errors": [
+        {
+          "error_code": "#MULTIVALUE",
+          "cause": "Formula returns multiple values for single cell",
+          "example_scenario": "Block contains Year, Sales. Variable returns Product Name (multiple per year)",
+          "solutions": [
+            "Add dimension to block",
+            "Use aggregation: Sum([Revenue]) In ([Year])",
+            "Change qualification to Dimension",
+            "Use ForEach: [Revenue] ForEach([Product])"
+          ]
+        },
+        {
+          "error_code": "#DIV/0",
+          "cause": "Division by zero",
+          "solution_code": "If [Denominator] <> 0 Then [Numerator] / [Denominator] Else 0"
+        },
+        {
+          "error_code": "#COMPUTATION",
+          "cause": "Slicing dimension no longer in block context",
+          "solution": "Ensure all dimensions in context operators are available in block"
+        },
+        {
+          "error_code": "#INCOMPATIBLE",
+          "cause": "Dimensions from incompatible contexts or unsynchronized providers",
+          "solutions": [
+            "Check universe for context issues",
+            "Merge dimensions from different providers",
+            "Create detail variables for incompatible dimensions"
+          ]
+        },
+        {
+          "error_code": "#DATASYNC",
+          "cause": "Dimensions from multiple unsynchronized providers in same block",
+          "solution": "Merge common dimensions to synchronize providers"
+        }
+      ]
+    },
+    "9_use_cases": {
+      "title": "Practical Use Case Examples",
+      "cases": [
+        {
+          "name": "Year-over-Year Growth",
+          "variables": [
+            {
+              "name": "var_CY_Revenue",
+              "code": "Sum([Revenue]) Where (Year([Date]) = Year(CurrentDate()))"
+            },
+            {
+              "name": "var_PY_Revenue",
+              "code": "Sum([Revenue]) Where (Year([Date]) = Year(CurrentDate()) - 1)"
+            },
+            {
+              "name": "var_YoY_Growth",
+              "code": "[var_CY_Revenue] - [var_PY_Revenue]"
+            },
+            {
+              "name": "var_YoY_Growth_Pct",
+              "code": "If [var_PY_Revenue] <> 0 Then ([var_YoY_Growth] / [var_PY_Revenue]) * 100 Else 0"
+            }
+          ]
+        },
+        {
+          "name": "Customer Segmentation",
+          "variables": [
+            {
+              "name": "var_CustomerSegment",
+              "code": "If Count([Order ID]) ForEach([Customer ID]) >= 20 Then \"Frequent\" ElseIf Count([Order ID]) ForEach([Customer ID]) >= 5 Then \"Regular\" Else \"Occasional\""
+            },
+            {
+              "name": "var_CustomerValue",
+              "code": "If Sum([Revenue]) ForEach([Customer ID]) >= 100000 Then \"High Value\" ElseIf Sum([Revenue]) ForEach([Customer ID]) >= 10000 Then \"Medium Value\" Else \"Low Value\""
+            }
+          ]
+        },
+        {
+          "name": "Dynamic Status Indicator",
+          "variables": [
+            {
+              "name": "var_PerformanceStatus",
+              "code": "If [Actual Sales] >= [Target Sales] * 1.1 Then \"Exceeding (\" + FormatNumber((([Actual Sales] - [Target Sales]) / [Target Sales]) * 100; \"0.0\") + \"% above)\" ElseIf [Actual Sales] >= [Target Sales] * 0.95 Then \"On Track\" Else \"Below Target (\" + FormatNumber((([Target Sales] - [Actual Sales]) / [Target Sales]) * 100; \"0.0\") + \"% below)\""
+            }
+          ]
+        },
+        {
+          "name": "Pareto Analysis (80/20)",
+          "variables": [
+            {
+              "name": "var_RunningRevenue",
+              "code": "RunningSum([Revenue])"
+            },
+            {
+              "name": "var_TotalRevenue",
+              "code": "Sum([Revenue]) In Report"
+            },
+            {
+              "name": "var_CumulativePercent",
+              "code": "([var_RunningRevenue] / [var_TotalRevenue]) * 100"
+            },
+            {
+              "name": "var_ParetoFlag",
+              "code": "If [var_CumulativePercent] <= 80 Then \"Top 80%\" Else \"Remaining 20%\""
+            }
+          ]
+        }
+      ]
+    },
+    "10_best_practices_checklist": {
+      "title": "Best Practices Summary Checklist",
+      "categories": [
+        {
+          "category": "Query Design",
+          "items": [
+            "Use query filters instead of report filters for large datasets",
+            "Remove unused objects from queries",
+            "Set appropriate scope of analysis levels",
+            "Optimize array fetch size",
+            "Use prompts with meaningful names",
+            "Enable query stripping for OLAP"
+          ]
+        },
+        {
+          "category": "Variable Creation",
+          "items": [
+            "Use naming conventions (var_ prefix)",
+            "Set correct qualification (Dimension/Measure/Detail)",
+            "Add zero-division checks",
+            "Use context operators appropriately",
+            "Add comments to complex formulas",
+            "Test variables with different data scenarios"
+          ]
+        },
+        {
+          "category": "Performance",
+          "items": [
+            "Remove unused variables",
+            "Avoid excessive ForEach/ForAll",
+            "Limit merged dimensions",
+            "Use aggregate awareness in universe",
+            "Keep data providers to <5 per document",
+            "Limit chart data points to <100"
+          ]
+        },
+        {
+          "category": "Report Structure",
+          "items": [
+            "Use breaks for table grouping",
+            "Use sections for page-level separation",
+            "Apply conditional formatting to KPIs",
+            "Set appropriate sorts at query level",
+            "Use input controls for interactive filtering"
+          ]
+        },
+        {
+          "category": "Documentation",
+          "items": [
+            "Add comments to complex variables",
+            "Include report purpose in header",
+            "Show data refresh date",
+            "Display prompt values used",
+            "Use meaningful object and variable names"
+          ]
+        }
+      ]
+    },
+    "11_formula_quick_reference": {
+      "title": "Quick Reference: Formula Syntax",
+      "categories": {
+        "aggregate_functions": [
+          "Sum([Measure])",
+          "Count([Dimension])",
+          "Count([Dimension]; Distinct)",
+          "Average([Measure])",
+          "Min([Measure])",
+          "Max([Measure])"
+        ],
+        "context_operators": [
+          "[Measure] In ([Dim1]; [Dim2])",
+          "[Measure] ForEach([Additional Dim])",
+          "[Measure] ForAll([Excluded Dim])",
+          "[Measure] Where([Condition] = \"Value\")"
+        ],
+        "comparison_functions": [
+          "Previous([Measure])",
+          "Previous([Measure]; [Reset Dim])",
+          "RunningSum([Measure])",
+          "RunningSum([Measure]; [Reset Dim])",
+          "Rank([Measure])"
+        ],
+        "string_functions": [
+          "Left([String]; Length)",
+          "Right([String]; Length)",
+          "Substr([String]; Start; Length)",
+          "Upper([String])",
+          "Lower([String])",
+          "Pos([String]; \"Search\")",
+          "Replace([String]; \"Old\"; \"New\")"
+        ],
+        "date_functions": [
+          "CurrentDate()",
+          "Year([Date])",
+          "Month([Date])",
+          "DayName([Date])",
+          "RelativeDate([Date]; Days)",
+          "DaysBetween([Date1]; [Date2])",
+          "FormatDate([Date]; \"Format\")",
+          "ToDate([String]; \"Format\")"
+        ],
+        "conversion_functions": [
+          "ToNumber([String])",
+          "FormatNumber([Number]; \"Format\")",
+          "ToDate([String]; \"Format\")"
+        ],
+        "logical_functions": [
+          "If Condition Then Value Else Value",
+          "IsNull([Object])",
+          "IsError([Object])"
+        ]
+      }
+    }
+  }
+}

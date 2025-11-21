@@ -1,0 +1,48 @@
+Category,Formula Name,Syntax,Example,Use Case,Complexity,Notes
+Conditional,Simple If,If condition Then value Else value,"If [Status] = ""Active"" Then 1 Else 0",Status classification,Beginner,Basic branching
+Conditional,Nested If,If cond1 Then val1 ElseIf cond2 Then val2 Else val3,"If [Score] < 10 Then ""Low"" ElseIf [Score] < 20 Then ""Medium"" Else ""High""",Multi-level categorization,Intermediate,Up to multiple conditions
+Conditional,And Logic,If cond1 And cond2 Then value Else value,"If [Sales] > 1000 And [Region] = ""North"" Then ""High Priority"" Else ""Normal""",Multiple criteria check,Intermediate,All conditions must be true
+Conditional,Or Logic,If cond1 Or cond2 Then value Else value,"If [Status] = ""Urgent"" Or [Days] > 30 Then ""Priority"" Else ""Normal""",Any condition check,Intermediate,Any condition can be true
+Aggregation,Sum,Sum([Measure]),Sum([Revenue]),Total calculation,Beginner,Sums all values
+Aggregation,Count,Count([Object]),Count([Customer ID]),Record count,Beginner,Counts non-null values
+Aggregation,Count Distinct,Count([Object]; Distinct),Count([Order ID]; Distinct),Unique records,Intermediate,Counts unique values only
+Aggregation,Average,Average([Measure]),Average([Sales Amount]),Mean calculation,Beginner,Mean of values
+Aggregation,Min,Min([Measure]),Min([Price]),Minimum value,Beginner,Lowest value
+Aggregation,Max,Max([Measure]),Max([Salary]),Maximum value,Beginner,Highest value
+Aggregation,Conditional Sum,Sum([Measure]) Where (condition),"Sum([Revenue]) Where ([Region] = ""US"")",Filtered total,Intermediate,Sum with filter
+Context,IN Operator,[Measure] In ([Dim1]; [Dim2]),Max([Revenue]) In ([Year]; [Month]),Specific context dimensions,Intermediate,Explicit dimension specification
+Context,ForEach,[Measure] ForEach([Dim]),Max([Sales]) ForEach([Product]),Add dimensions to context,Intermediate,Adds to existing context
+Context,ForAll,[Measure] ForAll([Dim]),Sum([Sales]) ForAll([Quarter]),Remove dimensions,Intermediate,Removes from context
+Context,Where Clause,[Measure] Where (condition),"Count([Orders]) Where ([Status] = ""Complete"")",Filter during calculation,Intermediate,Constant value required
+Time Series,Previous,Previous([Measure]),Previous([Revenue]),Previous period value,Intermediate,Requires sort order
+Time Series,Running Sum,RunningSum([Measure]),RunningSum([Sales]),Cumulative total,Intermediate,Progressive sum
+Time Series,Month-over-Month,[Current] - Previous([Measure]),[Revenue] - Previous([Revenue]),Period change,Intermediate,Simple difference
+Time Series,YoY Growth %,(([CY] - [PY]) / [PY]) * 100,(([Sales2023] - [Sales2022]) / [Sales2022]) * 100,Year-over-year growth,Intermediate,Percentage change
+Time Series,YTD,Sum([Measure]) Where (date criteria),Sum([Revenue]) Where ([Date] >= RelativeDate(CurrentDate(); -365)),Year-to-date total,Advanced,Time-based filtering
+String,Concatenation,[String1] + [String2],"[FirstName] + "" "" + [LastName]",Join strings,Beginner,Use + operator
+String,Left,Left([String]; N),Left([ID]; 3),First N characters,Beginner,Extract prefix
+String,Right,Right([String]; N),Right([Phone]; 4),Last N characters,Beginner,Extract suffix
+String,Mid/Substr,Substr([String]; Start; Length),Substr([Code]; 5; 3),Extract substring,Intermediate,Position-based extraction
+String,Length,Length([String]),Length([Name]),String length,Beginner,Count characters
+String,Replace,"Replace([String]; ""Old""; ""New"")","Replace([Phone]; ""-""; """")",Replace text,Intermediate,String substitution
+String,Upper,Upper([String]),Upper([Name]),Convert to uppercase,Beginner,Case conversion
+String,Lower,Lower([String]),Lower([Email]),Convert to lowercase,Beginner,Case conversion
+String,InitCap,InitCap([String]),InitCap([Title]),Proper case,Beginner,Title case conversion
+String,Position,"Pos([String]; ""Search"")","Pos([Email]; ""@"")",Find character position,Intermediate,Search in string
+Date,Current Date,CurrentDate(),CurrentDate(),Todays date,Beginner,System date
+Date,Relative Date,RelativeDate([Date]; Days),RelativeDate(CurrentDate(); -30),Date offset,Intermediate,Add/subtract days
+Date,Year,Year([Date]),Year([OrderDate]),Extract year,Beginner,Get year from date
+Date,Month,Month([Date]),Month([OrderDate]),Extract month,Beginner,Get month number
+Date,Day Name,DayName([Date]),DayName(CurrentDate()),Day of week,Intermediate,"Returns Monday, Tuesday, etc."
+Date,Days Between,DaysBetween([Date1]; [Date2]),DaysBetween([Start]; [End]),Days elapsed,Intermediate,Date difference
+Date,Format Date,"FormatDate([Date]; ""Format"")","FormatDate([Date]; ""dd/MM/yyyy"")",Format date display,Beginner,Customize date output
+Date,Convert to Date,"ToDate([String]; ""Format"")","ToDate(""2023-12-25""; ""yyyy-MM-dd"")",Parse date string,Intermediate,String to date
+Format,Format Number,"FormatNumber([Number]; ""Format"")","FormatNumber([Revenue]; ""#,##0.00"")",Number formatting,Beginner,Customize number display
+Format,Currency,"FormatNumber([Amount]; ""$#,##0.00"")","FormatNumber([Price]; ""$#,##0.00"")",Currency display,Beginner,Add currency symbol
+Format,Percentage,"FormatNumber([Value] * 100; ""0.00"") + ""%""","FormatNumber([Margin] * 100; ""0.00"") + ""%""",Percentage display,Intermediate,Format as percentage
+Format,To Number,ToNumber([String]),"ToNumber(""123"")",Convert string to number,Beginner,Type conversion
+Advanced,NoFilter,NoFilter([Measure]),NoFilter(Sum([Revenue])),Ignore all filters,Advanced,Calculates on full dataset
+Advanced,Is Null,IsNull([Object]),If IsNull([Value]) Then 0 Else [Value],Check for null,Intermediate,Null value handling
+Advanced,Is Error,IsError([Object]),If IsError([Calculation]) Then 0 Else [Calculation],Error handling,Advanced,Check for errors
+Advanced,Rank,Rank([Measure]),Rank([Sales]),Ranking,Intermediate,Assigns sequential rank
+Advanced,Division Safety,If [Denom] <> 0 Then [Numer]/[Denom] Else 0,If [Cost] <> 0 Then [Revenue]/[Cost] Else 0,Avoid #DIV/0,Intermediate,Zero-check pattern

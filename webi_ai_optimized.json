@@ -1,0 +1,640 @@
+{
+  "document_metadata": {
+    "title": "SAP BusinessObjects Web Intelligence - AI-Optimized Knowledge Base",
+    "version": "1.0",
+    "created_date": "2025-11-21",
+    "target_users": [
+      "developers",
+      "data_analysts",
+      "report_designers",
+      "DBAs"
+    ],
+    "formats_available": [
+      "JSON (structured)",
+      "YAML (readable)",
+      "CSV (formula reference)",
+      "Markdown (quick reference)"
+    ]
+  },
+  "quick_lookup": {
+    "by_problem": {
+      "i_need_multiple_year_comparison": [
+        "3.3_time_intelligence",
+        "9_use_cases.0"
+      ],
+      "i_need_customer_grouping": [
+        "3.1_conditional_logic",
+        "9_use_cases.1"
+      ],
+      "my_report_is_slow": [
+        "5_performance_optimization",
+        "4_query_optimization"
+      ],
+      "i_got_error_MULTIVALUE": [
+        "8_error_handling.0",
+        "1_2_variable_qualification"
+      ],
+      "i_need_running_total": [
+        "3.2_previous_and_running",
+        "2_3_output_context"
+      ],
+      "i_need_percentage_of_total": [
+        "3_formula_patterns",
+        "7_1_nofilter"
+      ],
+      "i_need_date_filtering": [
+        "3.3_time_intelligence",
+        "7_2_formatting_functions"
+      ],
+      "i_need_to_merge_names": [
+        "3.4_string_manipulation"
+      ],
+      "i_need_ranking": [
+        "6.2_sorting_ranking",
+        "3.5_aggregation_functions"
+      ],
+      "i_need_drill_through": [
+        "7.3_hyperlinks"
+      ]
+    },
+    "by_difficulty": {
+      "beginner": {
+        "formulas": [
+          "Sum, Count, Average, Min, Max aggregations",
+          "Simple If/Then/Else conditionals",
+          "Left, Right, Upper, Lower string functions",
+          "Basic date extraction (Year, Month)"
+        ],
+        "concepts": [
+          "Variable qualification basics",
+          "Query filters vs report filters",
+          "Simple naming conventions"
+        ]
+      },
+      "intermediate": {
+        "formulas": [
+          "Context operators: IN, ForEach, ForAll, Where",
+          "Nested If statements",
+          "Running sums and previous values",
+          "RelativeDate and date calculations",
+          "Conditional aggregations",
+          "String parsing and concatenation"
+        ],
+        "concepts": [
+          "Calculation contexts",
+          "Dimension vs Measure qualification",
+          "Query optimization strategies",
+          "Scope of analysis"
+        ]
+      },
+      "advanced": {
+        "formulas": [
+          "NoFilter function",
+          "Complex nested contexts",
+          "Recursive calculations",
+          "YTD and complex time logic",
+          "Error handling patterns"
+        ],
+        "concepts": [
+          "Aggregate awareness",
+          "Multiple data providers",
+          "Advanced performance tuning",
+          "Dynamic filtering",
+          "OpenDocument linking"
+        ]
+      }
+    },
+    "by_use_case": {
+      "sales_analysis": [
+        "Year-over-year growth calculation",
+        "Running totals by month",
+        "Top/bottom customer ranking",
+        "Sales by region percentage",
+        "Quota attainment"
+      ],
+      "financial_reporting": [
+        "Budget vs actual variance",
+        "Trend analysis",
+        "Margin calculations",
+        "Date range filtering",
+        "Multi-period comparisons"
+      ],
+      "customer_analytics": [
+        "Customer segmentation by value",
+        "Purchase frequency analysis",
+        "Customer lifetime metrics",
+        "Churn identification",
+        "Cohort analysis"
+      ],
+      "operational": [
+        "Process metrics",
+        "Performance against targets",
+        "Anomaly detection",
+        "Efficiency ratios",
+        "Status indicators"
+      ]
+    }
+  },
+  "formula_index": {
+    "aggregation": {
+      "category": "Numeric calculations over multiple rows",
+      "formulas": [
+        {
+          "name": "Sum",
+          "syntax": "Sum([Measure])",
+          "basic_example": "Sum([Revenue])",
+          "advanced_example": "Sum([Revenue]) Where ([Region] = 'North') ForEach([Year])",
+          "complexity": "beginner",
+          "performance": "good"
+        },
+        {
+          "name": "Count",
+          "syntax": "Count([Object])",
+          "basic_example": "Count([Order ID])",
+          "advanced_example": "Count([Order ID]; Distinct) Where ([Status] = 'Complete')",
+          "complexity": "beginner",
+          "performance": "good"
+        },
+        {
+          "name": "Average",
+          "syntax": "Average([Measure])",
+          "basic_example": "Average([Sales Amount])",
+          "advanced_example": "Average([Price]) Where ([Category] = 'Premium')",
+          "complexity": "beginner",
+          "performance": "good"
+        },
+        {
+          "name": "Min",
+          "syntax": "Min([Measure])",
+          "basic_example": "Min([Price])",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Max",
+          "syntax": "Max([Measure])",
+          "basic_example": "Max([Salary])",
+          "advanced_example": "Max([Revenue]) In ([Year]; [Month])",
+          "complexity": "beginner",
+          "performance": "good"
+        }
+      ]
+    },
+    "conditional": {
+      "category": "Decision making and branching",
+      "formulas": [
+        {
+          "name": "If/Then/Else",
+          "syntax": "If condition Then value Else value",
+          "basic_example": "If [Amount] > 1000 Then 'High' Else 'Low'",
+          "advanced_example": "If [Sales] > 1000000 And [Margin] > 0.2 Then 'Premium' ElseIf [Sales] > 500000 Then 'Standard' Else 'Basic'",
+          "complexity": "beginner",
+          "nested_levels": "up to 10+",
+          "performance": "good"
+        },
+        {
+          "name": "And Logic",
+          "syntax": "If condition1 And condition2 Then value",
+          "basic_example": "If [Status] = 'Active' And [Score] > 50 Then 1 Else 0",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Or Logic",
+          "syntax": "If condition1 Or condition2 Then value",
+          "basic_example": "If [Priority] = 'Urgent' Or [DaysOld] > 30 Then 'Review' Else 'Standard'",
+          "complexity": "intermediate"
+        }
+      ]
+    },
+    "string": {
+      "category": "Text manipulation and parsing",
+      "formulas": [
+        {
+          "name": "Concatenate",
+          "syntax": "[String1] + [String2]",
+          "basic_example": "[FirstName] + ' ' + [LastName]",
+          "advanced_example": "[Street] + ', ' + [City] + ', ' + [State] + ' ' + [Zip]",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Left",
+          "syntax": "Left([String]; Length)",
+          "basic_example": "Left([ID]; 3)",
+          "extracts": "First 3 characters",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Right",
+          "syntax": "Right([String]; Length)",
+          "basic_example": "Right([AccountNum]; 5)",
+          "extracts": "Last 5 characters",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Substring/Mid",
+          "syntax": "Substr([String]; StartPosition; Length)",
+          "basic_example": "Substr([Code]; 5; 3)",
+          "extracts": "3 characters starting at position 5",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Replace",
+          "syntax": "Replace([String]; 'FindText'; 'ReplaceText')",
+          "basic_example": "Replace([Phone]; '-'; '')",
+          "use": "Remove or change text",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Case Conversion",
+          "functions": [
+            "Upper([String])",
+            "Lower([String])",
+            "InitCap([String])"
+          ],
+          "examples": [
+            "Upper([Name])",
+            "Lower([Email])",
+            "InitCap([Title])"
+          ],
+          "complexity": "beginner"
+        },
+        {
+          "name": "Position",
+          "syntax": "Pos([String]; 'SearchFor')",
+          "basic_example": "Pos([Email]; '@')",
+          "returns": "Character position or 0 if not found",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Length",
+          "syntax": "Length([String])",
+          "basic_example": "Length([Name])",
+          "returns": "Number of characters",
+          "complexity": "beginner"
+        }
+      ]
+    },
+    "date": {
+      "category": "Date and time operations",
+      "formulas": [
+        {
+          "name": "Current Date",
+          "syntax": "CurrentDate()",
+          "returns": "Today's date",
+          "use": "System date reference",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Relative Date",
+          "syntax": "RelativeDate([Date]; DaysOffset)",
+          "examples": [
+            "RelativeDate(CurrentDate(); 7)",
+            "RelativeDate(CurrentDate(); -30)"
+          ],
+          "use": "Add or subtract days",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Year/Month/Day",
+          "syntax": "Year([Date]) / Month([Date]) / Day([Date])",
+          "examples": [
+            "Year([OrderDate])",
+            "Month([OrderDate])",
+            "Day([OrderDate])"
+          ],
+          "returns": [
+            "Year as number (2023)",
+            "Month as number (1-12)",
+            "Day as number (1-31)"
+          ],
+          "complexity": "beginner"
+        },
+        {
+          "name": "Day Name",
+          "syntax": "DayName([Date])",
+          "example": "DayName(CurrentDate())",
+          "returns": "Monday, Tuesday, Wednesday, etc.",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Days Between",
+          "syntax": "DaysBetween([StartDate]; [EndDate])",
+          "example": "DaysBetween([OrderDate]; [DeliveryDate])",
+          "returns": "Number of days between dates",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Format Date",
+          "syntax": "FormatDate([Date]; 'FormatString')",
+          "examples": [
+            "FormatDate([Date]; 'dd/MM/yyyy')",
+            "FormatDate([Date]; 'MMMM yyyy')",
+            "FormatDate([Date]; 'yyyy-MM-dd')"
+          ],
+          "complexity": "beginner"
+        },
+        {
+          "name": "Convert to Date",
+          "syntax": "ToDate([StringValue]; 'FormatString')",
+          "example": "ToDate('2023-12-25'; 'yyyy-MM-dd')",
+          "use": "Parse date from string",
+          "complexity": "intermediate"
+        }
+      ]
+    },
+    "context": {
+      "category": "Calculation context control",
+      "formulas": [
+        {
+          "name": "IN Operator",
+          "syntax": "[Measure] In ([Dimension1]; [Dimension2])",
+          "purpose": "Explicitly specify calculation dimensions",
+          "example": "Max([Revenue]) In ([State]; [Year])",
+          "when_to_use": "When you know exact dimensions needed",
+          "performance": "good",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "ForEach Operator",
+          "syntax": "[Measure] ForEach([AdditionalDimension])",
+          "purpose": "Add dimensions to default context",
+          "example": "Max([Sales]) ForEach([Quarter])",
+          "when_to_use": "Dimensions in query but not displayed",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "ForAll Operator",
+          "syntax": "[Measure] ForAll([DimensionToRemove])",
+          "purpose": "Remove dimensions from context",
+          "example": "Sum([Sales]) ForAll([Quarter])",
+          "when_to_use": "Calculate at higher aggregation level",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Where Clause",
+          "syntax": "[Measure] Where ([FieldName] = 'ConstantValue')",
+          "purpose": "Filter data during calculation",
+          "example": "Sum([Revenue]) Where ([Region] = 'North')",
+          "limitation": "Right side must be constant, not dynamic field",
+          "complexity": "intermediate"
+        }
+      ]
+    },
+    "time_series": {
+      "category": "Trend and period-over-period analysis",
+      "formulas": [
+        {
+          "name": "Previous",
+          "syntax": "Previous([Measure])",
+          "purpose": "Get previous period value",
+          "example": "Previous([Revenue])",
+          "requires": "Proper sort order",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Running Sum",
+          "syntax": "RunningSum([Measure])",
+          "purpose": "Cumulative total",
+          "basic_example": "RunningSum([Sales])",
+          "advanced_example": "RunningSum([Revenue]; ([Year]))",
+          "note": "Second parameter resets accumulation",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Period Change",
+          "syntax": "[Current] - Previous([Measure])",
+          "purpose": "Absolute change from previous",
+          "example": "[Revenue] - Previous([Revenue])",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Period Change %",
+          "syntax": "(([Current] - Previous([Measure])) / Previous([Measure])) * 100",
+          "purpose": "Percent change from previous",
+          "example_safe": "If IsNull(Previous([Revenue])) Or Previous([Revenue]) = 0 Then 0 Else (([Revenue] - Previous([Revenue])) / Previous([Revenue])) * 100",
+          "note": "Must check for null/zero",
+          "complexity": "intermediate"
+        }
+      ]
+    },
+    "formatting": {
+      "category": "Output display formatting",
+      "formulas": [
+        {
+          "name": "Format Number",
+          "syntax": "FormatNumber([Number]; 'FormatString')",
+          "examples": [
+            "FormatNumber([Revenue]; '#,##0.00')",
+            "FormatNumber([Price]; '$#,##0.00')",
+            "FormatNumber([Margin] * 100; '0.0') + '%'"
+          ],
+          "complexity": "beginner"
+        },
+        {
+          "name": "Convert to Number",
+          "syntax": "ToNumber([String])",
+          "example": "ToNumber('123')",
+          "use": "String to numeric conversion",
+          "complexity": "beginner"
+        },
+        {
+          "name": "Convert to String",
+          "syntax": "'String' + [Number]",
+          "example": "'' + [NumericField]",
+          "use": "Number to string conversion",
+          "complexity": "beginner"
+        }
+      ]
+    },
+    "advanced": {
+      "category": "Complex operations and edge cases",
+      "formulas": [
+        {
+          "name": "NoFilter",
+          "syntax": "NoFilter([Measure])",
+          "purpose": "Ignore report and block filters",
+          "use_case": "Percentage of total with filters applied",
+          "example": "([Revenue] / NoFilter(Sum([Revenue]))) * 100",
+          "variants": [
+            "NoFilter([M]; All)",
+            "NoFilter([M]; Drill)"
+          ],
+          "complexity": "advanced"
+        },
+        {
+          "name": "Is Null",
+          "syntax": "IsNull([Object])",
+          "purpose": "Check for null values",
+          "example": "If IsNull([Value]) Then 0 Else [Value]",
+          "use": "Null handling",
+          "complexity": "intermediate"
+        },
+        {
+          "name": "Is Error",
+          "syntax": "IsError([Object])",
+          "purpose": "Check for calculation errors",
+          "example": "If IsError([Calculation]) Then 0 Else [Calculation]",
+          "use": "Error handling",
+          "complexity": "advanced"
+        },
+        {
+          "name": "Rank",
+          "syntax": "Rank([Measure])",
+          "purpose": "Assign sequential rank",
+          "example": "Rank([Sales])",
+          "variants": [
+            "Rank([Sales]) In ([Year])",
+            "Rank([Profit]) ForEach([Region])"
+          ],
+          "complexity": "intermediate"
+        }
+      ]
+    }
+  },
+  "design_patterns": {
+    "pattern_1_division_safety": {
+      "name": "Safe Division Pattern",
+      "problem": "Avoid #DIV/0 errors",
+      "pattern": "If [Denominator] <> 0 Then [Numerator] / [Denominator] Else 0",
+      "examples": [
+        "If [Cost] <> 0 Then ([Revenue] - [Cost]) / [Cost] Else 0",
+        "If [Units] <> 0 Then [Revenue] / [Units] Else 0",
+        "If IsNull([Total]) Or [Total] = 0 Then 0 Else [Value] / [Total]"
+      ],
+      "applies_to": [
+        "Margins",
+        "Ratios",
+        "Percentages",
+        "Averages"
+      ],
+      "performance": "minimal overhead"
+    },
+    "pattern_2_percentage_of_total": {
+      "name": "Percentage of Total Pattern",
+      "problem": "Calculate percentage contribution",
+      "pattern": "([Measure] / Sum([Measure]) In Report) * 100",
+      "variants": [
+        "([Measure] / Sum([Measure]) In Section) * 100",
+        "([Measure] / Sum([Measure]) In Block) * 100"
+      ],
+      "examples": [
+        "([Sales] / Sum([Sales]) In Report) * 100",
+        "([Orders] / Count([Orders]) In Block) * 100"
+      ],
+      "use_cases": [
+        "Market share",
+        "Revenue distribution",
+        "Contribution analysis"
+      ],
+      "performance": "good"
+    },
+    "pattern_3_year_to_date": {
+      "name": "Year-to-Date Pattern",
+      "problem": "Calculate YTD totals",
+      "pattern": "Sum([Measure]) Where ([DateField] >= RelativeDate(CurrentDate(); -365) And [DateField] <= CurrentDate())",
+      "simplified": "Sum([Measure]) Where (Year([DateField]) = Year(CurrentDate()) And Month([DateField]) <= Month(CurrentDate()))",
+      "examples": [
+        "Sum([Revenue]) Where (Year([Date]) = Year(CurrentDate()) And Month([Date]) <= Month(CurrentDate()))",
+        "Sum([Orders]) Where ([OrderDate] >= RelativeDate(CurrentDate(); -365))"
+      ],
+      "performance": "good",
+      "use_cases": [
+        "YTD tracking",
+        "Progress to goal",
+        "Period summaries"
+      ]
+    },
+    "pattern_4_running_total_with_reset": {
+      "name": "Running Total with Reset Pattern",
+      "problem": "Calculate cumulative sum that resets by period",
+      "pattern": "RunningSum([Measure]; ([ResetDimension]))",
+      "examples": [
+        "RunningSum([Sales]; ([Year]))",
+        "RunningSum([Orders]; ([Month]))",
+        "RunningSum([Revenue]; ([Region]))"
+      ],
+      "explanation": "Resets accumulation at each new value of ResetDimension",
+      "requires": "Proper sort order on ResetDimension",
+      "performance": "good"
+    },
+    "pattern_5_month_over_month_growth": {
+      "name": "Month-over-Month Growth Pattern",
+      "problem": "Calculate MoM change and percentage",
+      "pattern_absolute": "[Current] - Previous([Measure])",
+      "pattern_percent": "If IsNull(Previous([Measure])) Or Previous([Measure]) = 0 Then 0 Else (([Current] - Previous([Measure])) / Previous([Measure])) * 100",
+      "examples": [
+        {
+          "absolute": "[Revenue] - Previous([Revenue])",
+          "percent": "If IsNull(Previous([Revenue])) Or Previous([Revenue]) = 0 Then 0 Else (([Revenue] - Previous([Revenue])) / Previous([Revenue])) * 100"
+        }
+      ],
+      "requires": "Sort on time dimension",
+      "performance": "good"
+    },
+    "pattern_6_top_n_with_conditions": {
+      "name": "Top N with Conditions Pattern",
+      "problem": "Identify top items by criteria",
+      "pattern": "If Rank([Measure]) <= 10 Then [Value] Else 0",
+      "variants": [
+        "If Rank([Measure]) In ([GroupDim]) <= 5 Then [Value] Else 0",
+        "If Rank([Measure]) Where ([Condition]) <= 20 Then [Value] Else 0"
+      ],
+      "use_cases": [
+        "Top 10 products",
+        "Top 5 customers by region",
+        "Top sellers"
+      ],
+      "performance": "good"
+    },
+    "pattern_7_status_classification": {
+      "name": "Multi-Level Status Classification",
+      "problem": "Classify items into business categories",
+      "pattern": "If [Metric1] >= threshold1 And [Metric2] >= threshold2 Then 'Category1' ElseIf [Metric1] >= threshold1 Then 'Category2' Else 'Category3'",
+      "example": "If [Revenue] >= 1000000 And [Margin] >= 0.25 Then 'Premium' ElseIf [Revenue] >= 500000 Then 'Standard' Else 'Basic'",
+      "use_cases": [
+        "Customer segmentation",
+        "Product classification",
+        "Risk rating"
+      ],
+      "performance": "minimal overhead"
+    }
+  },
+  "performance_tips": {
+    "query_level": [
+      "Use query filters instead of report filters (10-100x faster)",
+      "Remove unused objects from query",
+      "Enable query stripping for OLAP universes",
+      "Use aggregate awareness in universe design",
+      "Optimize array fetch size (500-2000 typical)",
+      "Set scope of analysis appropriately",
+      "Use prompts with constrained lists when possible"
+    ],
+    "variable_level": [
+      "Minimize use of ForEach and ForAll operators",
+      "Prefer IN operator when you know exact dimensions",
+      "Avoid complex nested contexts",
+      "Use NoFilter sparingly",
+      "Pre-calculate expensive operations in universe when possible"
+    ],
+    "report_level": [
+      "Remove unused variables before deployment",
+      "Limit number of merged dimensions (<3 typical)",
+      "Avoid excessive data providers (>5 slows reports)",
+      "Limit chart data points to <100",
+      "Use breaks instead of sections when possible",
+      "Set appropriate sorting at query level"
+    ],
+    "document_level": [
+      "Keep document file size reasonable (<10 MB typical)",
+      "Use Query Drill instead of Standard Drill for web access",
+      "Avoid storing scope of analysis for large drill paths",
+      "Limit number of reports per document"
+    ]
+  },
+  "related_concepts": {
+    "universe_design": "Proper universe design is foundational to WebI performance",
+    "semantic_layer": "Universe acts as semantic layer between reports and data",
+    "aggregate_awareness": "Use summary tables for aggregated queries",
+    "context_of_analysis": "Controls dimension hierarchy in drilling",
+    "measure_qualification": "Marks objects as measure or dimension at universe level"
+  }
+}
