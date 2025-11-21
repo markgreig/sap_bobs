@@ -2962,5 +2962,948 @@ Else "Exclude"
 
 ---
 
+# Part 5: Problem-Solution Mapping
+
+This section provides quick solutions to common WebI problems, organized by task type. Each problem includes context, solution, and police data example.
+
+## 5.1 Data Quality & Filtering
+
+### Problem 5.1.1: Get Only the Latest Record per ID
+
+**Context:** Multiple entries per Case ID, need only the most recent.
+
+**Solution Pattern:**
+```webi
+// Step 1: Find latest date per ID
+// Variable: var_Latest_Date_Per_Case
+Max([Incident Date]) In ([Case ID])
+
+// Step 2: Flag latest records
+// Variable: var_Is_Latest
+If [Incident Date] = [var_Latest_Date_Per_Case] Then "Latest" Else "Historical"
+
+// Step 3: Filter
+// Report Filter: [var_Is_Latest] = "Latest"
+```
+
+**See Also:** Part 4.2 - Getting Latest/Most Recent Record
+
+---
+
+### Problem 5.1.2: Get Only Records Modified in Last 30 Days
+
+**Context:** Focus analysis on recently updated cases only.
+
+**Solution Pattern:**
+```webi
+// Query Filter (preferred - faster):
+[Modified Date] >= RelativeDate(CurrentDate(); -30)
+
+// OR Variable approach:
+// Variable: var_Recent_Activity
+If [Modified Date] >= RelativeDate(CurrentDate(); -30)
+Then "Recent"
+Else "Old"
+
+// Report Filter: [var_Recent_Activity] = "Recent"
+```
+
+**Performance Note:** Query filter is 10-100x faster than report filter for large datasets.
+
+---
+
+### Problem 5.1.3: Exclude Records with Missing Critical Fields
+
+**Context:** Need complete records only - exclude cases missing officer assignment or location.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Is_Complete_Record
+If Not(IsNull([Assigned Officer])) And Not(IsNull([Location]))
+Then "Complete"
+Else "Incomplete"
+
+// Report Filter: [var_Is_Complete_Record] = "Complete"
+
+// OR single-line version:
+If IsNull([Assigned Officer]) Or IsNull([Location]) Then "Exclude" Else "Include"
+```
+
+**See Also:** Part 4.3 - Getting Most Complete Record
+
+---
+
+### Problem 5.1.4: Get Best Record Based on Status Priority
+
+**Context:** Multiple records per Case ID with different statuses - prefer "Closed" over "Active" over "Pending".
+
+**Solution Pattern:**
+```webi
+// Step 1: Assign numeric priority
+// Variable: var_Status_Priority
+If [Case Status] = "Closed" Then 3
+ElseIf [Case Status] = "Active" Then 2
+ElseIf [Case Status] = "Pending" Then 1
+Else 0
+
+// Step 2: Find highest priority per case
+// Variable: var_Best_Priority_Per_Case
+Max([var_Status_Priority]) In ([Case ID])
+
+// Step 3: Flag best record
+// Variable: var_Is_Best_Status
+If [var_Status_Priority] = [var_Best_Priority_Per_Case]
+Then "Best"
+Else "Other"
+
+// Report Filter: [var_Is_Best_Status] = "Best"
+```
+
+**See Also:** Part 4.5 - Priority-Based Record Selection
+
+---
+
+### Problem 5.1.5: Filter to Show Only Records Above Threshold
+
+**Context:** Show only high-priority cases (priority >= 7) or high-value incidents (value > $10,000).
+
+**Solution Pattern:**
+```webi
+// Query Filter (preferred):
+[Priority Level] >= 7
+
+// OR Variable approach:
+// Variable: var_Priority_Category
+If [Priority Level] >= 7 Then "High Priority" Else "Normal"
+
+// Report Filter: [var_Priority_Category] = "High Priority"
+
+// Multiple conditions:
+If [Priority Level] >= 7 And [Property Value] > 10000
+Then "Critical High Value"
+Else "Other"
+```
+
+---
+
+## 5.2 Calculations & Aggregations
+
+### Problem 5.2.1: Calculate Percentage of Total
+
+**Context:** Show each district's arrest count as percentage of total arrests.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Arrest_Percentage
+// Qualification: Measure
+([District Arrests] / Sum([District Arrests]) ForAll([District])) * 100
+
+// With formatting:
+FormatNumber(
+  ([District Arrests] / Sum([District Arrests]) ForAll([District])) * 100,
+  "0.00"
+) + "%"
+```
+
+**Key Concept:** `ForAll([District])` removes district from context, giving total.
+
+**See Also:** Part 3.3.3 - ForAll operator
+
+---
+
+### Problem 5.2.2: Calculate Running Total
+
+**Context:** Show cumulative arrests by month throughout the year.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Cumulative_Arrests
+// Qualification: Measure
+RunningSum([Arrests])
+
+// IMPORTANT: Block must be sorted by date ascending
+```
+
+**Requirements:**
+- Block must have proper sort order
+- Works best with single dimension (Month/Date)
+
+**See Also:** Part 3.4.8 - RunningSum function
+
+---
+
+### Problem 5.2.3: Calculate Month-over-Month Change
+
+**Context:** Compare current month arrests to previous month.
+
+**Solution Pattern:**
+```webi
+// Variable: var_MoM_Arrest_Change
+// Qualification: Measure
+[Arrests] - Previous([Arrests])
+
+// Percentage change:
+// Variable: var_MoM_Arrest_Change_Pct
+If IsNull(Previous([Arrests])) Or Previous([Arrests]) = 0
+Then 0
+Else (([Arrests] - Previous([Arrests])) / Previous([Arrests])) * 100
+```
+
+**Requirements:**
+- Block must be sorted by time dimension
+- Use `IsNull()` check to handle first period
+
+**See Also:** Part 3.7.9 - Previous function
+
+---
+
+### Problem 5.2.4: Count Distinct Cases (Not Total Records)
+
+**Context:** Dataset has multiple records per case - need unique case count.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Unique_Case_Count
+// Qualification: Measure
+Count([Case ID]; Distinct)
+
+// VS regular count (counts all records):
+Count([Case ID])
+```
+
+**When to Use:** Whenever data has multiple rows per entity and you need entity count.
+
+**See Also:** Part 3.2.3 - Count with Distinct
+
+---
+
+### Problem 5.2.5: Calculate Average Excluding Outliers
+
+**Context:** Calculate average response time but exclude extreme outliers (>2 hours).
+
+**Solution Pattern:**
+```webi
+// Variable: var_Response_Time_Minutes_Filtered
+// Qualification: Measure
+Average([Response Time Minutes]) Where ([Response Time Minutes] <= 120)
+```
+
+**Alternative - Using Variables:**
+```webi
+// Step 1: Flag outliers
+// Variable: var_Is_Normal_Response
+If [Response Time Minutes] <= 120 Then "Normal" Else "Outlier"
+
+// Step 2: Calculate average on filtered data
+// Apply Report Filter: [var_Is_Normal_Response] = "Normal"
+// Then use: Average([Response Time Minutes])
+```
+
+---
+
+### Problem 5.2.6: Create Conditional Sum (Sum with Filter)
+
+**Context:** Sum only arrests where arrest type is "Felony".
+
+**Solution Pattern:**
+```webi
+// Variable: var_Felony_Arrest_Count
+// Qualification: Measure
+Sum([Arrests]) Where ([Arrest Type] = "Felony")
+
+// Multiple conditions:
+Sum([Arrests]) Where ([Arrest Type] = "Felony" And [District] = "North")
+```
+
+**Limitation:** WHERE clause right side must be constant - cannot use `Where ([District] = [Selected District])`.
+
+**See Also:** Part 3.3.4 - Where operator
+
+---
+
+### Problem 5.2.7: Calculate Weighted Average
+
+**Context:** Calculate district average response time weighted by case volume.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Weighted_Avg_Response_Time
+// Qualification: Measure
+Sum([Response Time Minutes] * [Case Count]) / Sum([Case Count])
+```
+
+**Example Values:**
+- District A: 15 min response, 100 cases → weight = 1500
+- District B: 25 min response, 50 cases → weight = 1250
+- Weighted average: (1500 + 1250) / (100 + 50) = 18.33 minutes
+
+---
+
+## 5.3 Date & Time Analysis
+
+### Problem 5.3.1: Get Records from Last N Days
+
+**Context:** Show cases opened in last 7 days.
+
+**Solution Pattern:**
+```webi
+// Query Filter (preferred):
+[Open Date] >= RelativeDate(CurrentDate(); -7)
+
+// Variable approach:
+// Variable: var_Is_Recent_Case
+If [Open Date] >= RelativeDate(CurrentDate(); -7)
+Then "Last 7 Days"
+Else "Older"
+```
+
+**Common Timeframes:**
+- Last 7 days: `RelativeDate(CurrentDate(); -7)`
+- Last 30 days: `RelativeDate(CurrentDate(); -30)`
+- Last 90 days: `RelativeDate(CurrentDate(); -90)`
+- Last year: `RelativeDate(CurrentDate(); -365)`
+
+---
+
+### Problem 5.3.2: Calculate Days Between Two Dates
+
+**Context:** Calculate how many days a case has been open.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Days_Open
+// Qualification: Measure
+DaysBetween([Open Date]; CurrentDate())
+
+// If case has close date, use that:
+// Variable: var_Days_To_Close
+If IsNull([Close Date])
+Then DaysBetween([Open Date]; CurrentDate())
+Else DaysBetween([Open Date]; [Close Date])
+```
+
+**See Also:** Part 3.4.6 - DaysBetween function
+
+---
+
+### Problem 5.3.3: Group Dates into Weeks/Months/Quarters
+
+**Context:** Aggregate daily incident data into weekly or monthly views.
+
+**Solution Pattern:**
+```webi
+// Week (showing start of week):
+// Variable: var_Week_Start
+// Qualification: Dimension
+RelativeDate([Incident Date]; -(DayNumberOfWeek([Incident Date]) - 1))
+
+// Month name:
+// Variable: var_Month_Name
+// Qualification: Dimension
+MonthName([Incident Date])
+
+// Year-Month combined:
+// Variable: var_Year_Month
+// Qualification: Dimension
+FormatDate([Incident Date]; "yyyy-MM")
+
+// Quarter:
+// Variable: var_Quarter
+// Qualification: Dimension
+"Q" + Quarter([Incident Date]) + " " + Year([Incident Date])
+```
+
+---
+
+### Problem 5.3.4: Identify Business Days vs Weekends
+
+**Context:** Separate incidents occurring on weekdays from weekend incidents.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Day_Type
+// Qualification: Dimension
+If DayNumberOfWeek([Incident Date]) In (1; 7)
+Then "Weekend"
+Else "Weekday"
+
+// More detailed:
+// Variable: var_Day_Category
+If DayNumberOfWeek([Incident Date]) = 1 Then "Sunday"
+ElseIf DayNumberOfWeek([Incident Date]) = 7 Then "Saturday"
+ElseIf DayNumberOfWeek([Incident Date]) = 6 Then "Friday"
+Else "Mon-Thu"
+```
+
+**DayNumberOfWeek Values:** 1=Sunday, 2=Monday, ..., 7=Saturday
+
+---
+
+### Problem 5.3.5: Calculate Time Between Timestamps
+
+**Context:** Calculate response time in hours/minutes between dispatch and arrival.
+
+**Solution Pattern:**
+```webi
+// Hours (decimal):
+// Variable: var_Response_Hours
+// Qualification: Measure
+([Arrival Time] - [Dispatch Time]) * 24
+
+// Minutes:
+// Variable: var_Response_Minutes
+// Qualification: Measure
+([Arrival Time] - [Dispatch Time]) * 24 * 60
+
+// Formatted as HH:MM:
+// Variable: var_Response_Time_Formatted
+FormatNumber(Floor(([Arrival Time] - [Dispatch Time]) * 24); "00") + ":" +
+FormatNumber(Round((([Arrival Time] - [Dispatch Time]) * 24 * 60) Mod 60; 0); "00")
+```
+
+---
+
+### Problem 5.3.6: Get Year-to-Date (YTD) Total
+
+**Context:** Show total arrests from January 1st of current year to today.
+
+**Solution Pattern:**
+```webi
+// Variable: var_YTD_Arrests
+// Qualification: Measure
+Sum([Arrests]) Where (
+  [Arrest Date] >= ToDate("01/01/" + Year(CurrentDate()); "MM/dd/yyyy")
+  And [Arrest Date] <= CurrentDate()
+)
+```
+
+**Alternative Using RelativeDate:**
+```webi
+// Approximate YTD (last 365 days):
+Sum([Arrests]) Where ([Arrest Date] >= RelativeDate(CurrentDate(); -365))
+```
+
+---
+
+## 5.4 Report Structure & Display
+
+### Problem 5.4.1: Create Categorical Labels from Numeric Values
+
+**Context:** Convert numeric priority (1-10) into categories (Low/Medium/High).
+
+**Solution Pattern:**
+```webi
+// Variable: var_Priority_Category
+// Qualification: Dimension
+If [Priority Score] >= 8 Then "High"
+ElseIf [Priority Score] >= 4 Then "Medium"
+Else "Low"
+```
+
+**Best Practice:** Use Dimension qualification for categorical text results.
+
+**See Also:** Part 2.1 - Variable Qualification Types
+
+---
+
+### Problem 5.4.2: Combine Multiple Fields into Single Display
+
+**Context:** Show officer name as "LastName, FirstName (Badge#)".
+
+**Solution Pattern:**
+```webi
+// Variable: var_Officer_Full_Display
+// Qualification: Detail
+[Officer Last Name] + ", " + [Officer First Name] + " (" + [Badge Number] + ")"
+```
+
+**Result Example:** "Johnson, Michael (1247)"
+
+**See Also:** Part 3.5.1 - String concatenation
+
+---
+
+### Problem 5.4.3: Format Numbers with Thousands Separators
+
+**Context:** Display case count as "1,234" instead of "1234".
+
+**Solution Pattern:**
+```webi
+// Variable: var_Case_Count_Formatted
+// Qualification: Dimension (for display text)
+FormatNumber([Case Count]; "#,##0")
+
+// With decimals:
+FormatNumber([Average Response Time]; "#,##0.00")
+
+// Currency:
+FormatNumber([Property Value]; "$#,##0.00")
+```
+
+**See Also:** Part 3.6.1 - FormatNumber function
+
+---
+
+### Problem 5.4.4: Show Rank Within Group
+
+**Context:** Rank officers by arrest count within each district.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Officer_Rank_In_District
+// Qualification: Measure
+Rank([Arrests]; ([District]))
+
+// Descending rank (highest first):
+Rank([Arrests]; ([District]); "Descending")
+```
+
+**Requirements:**
+- [District] must be in the block
+- Block should be sorted by [Arrests] descending for visual clarity
+
+**See Also:** Part 3.7.10 - Rank function
+
+---
+
+### Problem 5.4.5: Create Dynamic Hyperlinks to Case Details
+
+**Context:** Link from report to external case management system.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Case_Detail_Link
+// Qualification: Detail
+"<a href='http://casemanagement.pd.local/case/" + [Case ID] + "'>" + [Case ID] + "</a>"
+```
+
+**OR using OpenDocument:**
+```webi
+// Variable: var_Case_Link_OpenDoc
+"http://servername/opendocument.jsp?iDocID=12345&lsSCase_ID=" + [Case ID]
+```
+
+**Note:** OpenDocument syntax varies by BI platform version.
+
+---
+
+## 5.5 Performance & Optimization
+
+### Problem 5.5.1: Report is Slow - How Do I Speed It Up?
+
+**Context:** Report takes too long to run or refresh.
+
+**Solution Checklist:**
+
+1. **Move filters to query level (10-100x faster)**
+   ```webi
+   // SLOW (Report Filter):
+   [District] = "North"
+
+   // FAST (Query Filter):
+   Move to Edit Query → Query Filters
+   ```
+
+2. **Remove unused objects from query**
+   - Edit Query → Remove any fields not used in report
+
+3. **Limit Scope of Analysis**
+   - Query Properties → Scope of Analysis → "None" (if no drilling needed)
+
+4. **Use aggregated data providers**
+   - Pre-aggregate at database level if possible
+
+5. **Minimize merged dimensions**
+   - Merging is expensive - only merge when necessary
+
+6. **Add database indexes**
+   - Ensure filter fields and join keys are indexed
+
+**See Also:** Part 7 - Optimization Guide, Part 4.8 - Performance Optimization
+
+---
+
+### Problem 5.5.2: Formula is Causing #COMPUTATION Error
+
+**Context:** Formula works in some blocks but fails with #COMPUTATION in others.
+
+**Solution Pattern:**
+```webi
+// PROBLEM: Missing context dimension
+// This fails if [District] not in block:
+Max([Arrests])
+
+// SOLUTION: Explicitly specify context
+Max([Arrests]) In ([Officer ID]; [Month])
+
+// OR use ForEach to add dimension:
+Max([Arrests]) ForEach([District])
+```
+
+**Root Cause:** WebI can't determine aggregation level without proper context.
+
+**See Also:** Part 6.2 - #COMPUTATION error, Part 2.2 - Calculation Contexts
+
+---
+
+### Problem 5.5.3: Need to Ignore Report Filters for Specific Calculation
+
+**Context:** Want to show "% of Total" where total is unfiltered, but detail rows are filtered.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Filtered_Arrests
+// Qualification: Measure
+Sum([Arrests])  // This respects filters
+
+// Variable: var_Total_Arrests_Unfiltered
+// Qualification: Measure
+NoFilter(Sum([Arrests]))  // This ignores ALL report filters
+
+// Variable: var_Percent_of_Unfiltered_Total
+// Qualification: Measure
+([var_Filtered_Arrests] / [var_Total_Arrests_Unfiltered]) * 100
+```
+
+**Use Case:** Showing filtered subset as percentage of complete dataset.
+
+**See Also:** Part 3.7.11 - NoFilter function
+
+---
+
+## 5.6 Error Handling & Data Quality
+
+### Problem 5.6.1: Prevent #DIV/0 Errors
+
+**Context:** Division formula fails when denominator is zero.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Clearance_Rate
+// Qualification: Measure
+If [Cases Closed] = 0
+Then 0
+Else ([Cases Closed] / [Total Cases]) * 100
+
+// More robust (handles null too):
+If IsNull([Total Cases]) Or [Total Cases] = 0
+Then 0
+Else ([Cases Closed] / [Total Cases]) * 100
+```
+
+**Best Practice:** Always check denominator before division.
+
+---
+
+### Problem 5.6.2: Handle Null Values in Calculations
+
+**Context:** Calculation fails or shows wrong results when fields contain nulls.
+
+**Solution Pattern:**
+```webi
+// Replace null with zero:
+// Variable: var_Arrests_Safe
+If IsNull([Arrests]) Then 0 Else [Arrests]
+
+// Replace null with default text:
+// Variable: var_Officer_Name_Safe
+If IsNull([Officer Name]) Then "Unassigned" Else [Officer Name]
+
+// Skip nulls in conditional:
+If Not(IsNull([Close Date])) And [Close Date] < CurrentDate()
+Then "Closed On Time"
+Else "Open or Late"
+```
+
+**See Also:** Part 3.7.8 - IsNull function
+
+---
+
+### Problem 5.6.3: Identify Records with Missing Data
+
+**Context:** Find cases missing critical information for data quality audit.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Missing_Fields_Count
+// Qualification: Measure
+If IsNull([Officer Name]) Then 1 Else 0 +
+If IsNull([Location]) Then 1 Else 0 +
+If IsNull([Incident Type]) Then 1 Else 0
+
+// Variable: var_Data_Quality_Status
+// Qualification: Dimension
+If [var_Missing_Fields_Count] = 0 Then "Complete"
+ElseIf [var_Missing_Fields_Count] <= 2 Then "Mostly Complete"
+Else "Incomplete"
+```
+
+**See Also:** Part 4.3 - Getting Most Complete Record
+
+---
+
+### Problem 5.6.4: Handle Errors Gracefully in Formulas
+
+**Context:** Formula may error in some conditions - want to show 0 or default instead of error.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Safe_Calculation
+// Qualification: Measure
+If IsError([Complex Formula])
+Then 0
+Else [Complex Formula]
+
+// With custom error message:
+// Qualification: Dimension
+If IsError([Complex Formula])
+Then "Calculation Error"
+Else FormatNumber([Complex Formula]; "#,##0.00")
+```
+
+**See Also:** Part 3.7.12 - IsError function
+
+---
+
+### Problem 5.6.5: Validate Data Ranges
+
+**Context:** Flag records with suspicious values (negative durations, future dates, etc.).
+
+**Solution Pattern:**
+```webi
+// Variable: var_Data_Validation_Flag
+// Qualification: Dimension
+If [Response Time Minutes] < 0 Then "ERROR: Negative Duration"
+ElseIf [Response Time Minutes] > 1440 Then "WARNING: >24 hours"
+ElseIf [Incident Date] > CurrentDate() Then "ERROR: Future Date"
+ElseIf IsNull([Officer Name]) Then "WARNING: Missing Officer"
+Else "Valid"
+
+// Report Filter: [var_Data_Validation_Flag] Not In ("Valid")
+// This shows only problematic records
+```
+
+---
+
+## 5.7 Advanced Scenarios
+
+### Problem 5.7.1: Create Dynamic Date Ranges Based on User Selection
+
+**Context:** Let users choose "Last 7 Days", "Last 30 Days", "Last Quarter" dynamically.
+
+**Solution Pattern:**
+```webi
+// Step 1: Create prompt variable
+// Variable: var_Date_Range_Selection
+// Use prompt: @Prompt('Select Time Period:', 'A', {'Last 7 Days', 'Last 30 Days', 'Last Quarter'}, mono, free)
+
+// Step 2: Calculate date threshold
+// Variable: var_Date_Threshold
+If [var_Date_Range_Selection] = "Last 7 Days"
+Then RelativeDate(CurrentDate(); -7)
+ElseIf [var_Date_Range_Selection] = "Last 30 Days"
+Then RelativeDate(CurrentDate(); -30)
+ElseIf [var_Date_Range_Selection] = "Last Quarter"
+Then RelativeDate(CurrentDate(); -90)
+Else RelativeDate(CurrentDate(); -365)
+
+// Step 3: Filter data
+// Report Filter: [Incident Date] >= [var_Date_Threshold]
+```
+
+**See Also:** Part 2.3.7 - @Prompt function
+
+---
+
+### Problem 5.7.2: Compare Current Period to Same Period Last Year
+
+**Context:** Show arrests this month vs same month last year.
+
+**Solution Pattern:**
+```webi
+// Assuming separate data providers for current year and last year
+// OR using a single provider with year dimension
+
+// Variable: var_This_Year_Arrests
+Sum([Arrests]) Where (Year([Arrest Date]) = Year(CurrentDate()))
+
+// Variable: var_Last_Year_Arrests
+Sum([Arrests]) Where (Year([Arrest Date]) = Year(CurrentDate()) - 1)
+
+// Variable: var_YoY_Change
+[var_This_Year_Arrests] - [var_Last_Year_Arrests]
+
+// Variable: var_YoY_Change_Pct
+If [var_Last_Year_Arrests] = 0
+Then 0
+Else (([var_This_Year_Arrests] - [var_Last_Year_Arrests]) / [var_Last_Year_Arrests]) * 100
+```
+
+---
+
+### Problem 5.7.3: Create Multi-Level Categorization
+
+**Context:** Categorize cases by multiple criteria: Priority + Case Type.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Case_Category_Detailed
+// Qualification: Dimension
+If [Priority Level] >= 8 And [Case Type] = "Violent Crime"
+Then "CRITICAL: Violent"
+ElseIf [Priority Level] >= 8 And [Case Type] = "Property Crime"
+Then "CRITICAL: Property"
+ElseIf [Priority Level] >= 8
+Then "CRITICAL: Other"
+ElseIf [Priority Level] >= 4 And [Case Type] = "Violent Crime"
+Then "HIGH: Violent"
+ElseIf [Priority Level] >= 4 And [Case Type] = "Property Crime"
+Then "HIGH: Property"
+ElseIf [Priority Level] >= 4
+Then "HIGH: Other"
+Else "ROUTINE"
+```
+
+**Result:** 7 distinct categories combining priority and type.
+
+---
+
+### Problem 5.7.4: Calculate Percentile Rank
+
+**Context:** Determine what percentile each officer falls into by arrest count.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Officer_Percentile
+// Qualification: Measure
+(Rank([Arrests]; ()) / Count([Officer ID]; All; Distinct)) * 100
+
+// Interpretation:
+// 90 = Top 10% (90th percentile)
+// 50 = Median
+// 10 = Bottom 10%
+```
+
+**See Also:** Part 3.7.10 - Rank function
+
+---
+
+### Problem 5.7.5: Merge Data from Multiple Queries
+
+**Context:** Combine case data from Query 1 with officer data from Query 2.
+
+**Solution Pattern:**
+1. **Create Merged Dimension:**
+   - Right-click dimension in Available Objects
+   - Choose "Merge"
+   - Select matching dimension from other query
+   - Example: Merge [Officer ID] from Query 1 with [Officer ID] from Query 2
+
+2. **Use in Report:**
+   ```webi
+   // Block can now show:
+   [Officer ID] (merged)
+   [Cases] (from Query 1)
+   [Officer Name] (from Query 2)
+   ```
+
+**Performance Note:** Merging is expensive - minimize merged dimensions.
+
+**See Also:** Part 2.3.5 - Merged Dimensions
+
+---
+
+### Problem 5.7.6: Create Conditional Formatting Based on Formula
+
+**Context:** Highlight cells red if response time exceeds threshold.
+
+**Solution Pattern:**
+```webi
+// Create helper variable:
+// Variable: var_Response_Time_Status
+// Qualification: Dimension
+If [Response Time Minutes] > 30 Then "Exceeded"
+ElseIf [Response Time Minutes] > 20 Then "Warning"
+Else "Normal"
+
+// Then in report:
+// 1. Right-click cell → Format Cell → Add conditional formatting
+// 2. Condition: [var_Response_Time_Status] = "Exceeded"
+// 3. Format: Background color = Red
+```
+
+**Alternative:** Use cell formatting rules directly on [Response Time Minutes] > 30.
+
+---
+
+### Problem 5.7.7: Show Top N Records Only
+
+**Context:** Display only top 10 officers by arrest count.
+
+**Solution Pattern:**
+```webi
+// Variable: var_Officer_Rank
+// Qualification: Measure
+Rank([Arrests]; (); "Descending")
+
+// Report Filter: [var_Officer_Rank] <= 10
+```
+
+**Result:** Only top 10 officers displayed, dynamically updated as data changes.
+
+**See Also:** Part 3.7.10 - Rank function
+
+---
+
+### Problem 5.7.8: Calculate Moving Average
+
+**Context:** Show 7-day moving average of daily incidents.
+
+**Solution Pattern:**
+```webi
+// Variable: var_7Day_Moving_Avg
+// Qualification: Measure
+Average([Daily Incidents]; (Previous(Self; 6); Previous(Self; 5); Previous(Self; 4);
+Previous(Self; 3); Previous(Self; 2); Previous(Self; 1); Self))
+```
+
+**WebI 4.2 Note:** WebI doesn't have native moving average - requires complex Previous() nesting or database-level calculation.
+
+**Alternative:** Use RunningSum with rolling window logic.
+
+---
+
+## 5.8 Quick Reference: Problem → Section Lookup
+
+**Data Quality & Filtering:**
+- Latest record per ID → Part 4.2
+- Most complete record → Part 4.3
+- Priority-based selection → Part 4.5
+- Null handling → Problem 5.6.2
+
+**Calculations:**
+- Percentage of total → Problem 5.2.1
+- Running total → Problem 5.2.2
+- Month-over-month change → Problem 5.2.3
+- Conditional sum → Problem 5.2.6
+
+**Date & Time:**
+- Last N days filter → Problem 5.3.1
+- Days between dates → Problem 5.3.2
+- Group by week/month → Problem 5.3.3
+- YTD calculation → Problem 5.3.6
+
+**Performance:**
+- Slow report → Problem 5.5.1
+- Query vs report filters → Part 2.3.4
+- Optimization techniques → Part 7
+
+**Errors:**
+- #DIV/0 → Problem 5.6.1
+- #COMPUTATION → Problem 5.5.2
+- #MULTIVALUE → Part 6.1
+
+---
+
 
 
