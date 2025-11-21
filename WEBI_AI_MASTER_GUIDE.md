@@ -3905,5 +3905,1020 @@ Previous(Self; 3); Previous(Self; 2); Previous(Self; 1); Self))
 
 ---
 
+# Part 6: Error Troubleshooting Guide
+
+This section provides comprehensive troubleshooting for common WebI errors with detailed explanations, root causes, and solutions.
+
+## 6.1 #MULTIVALUE Error
+
+**Description:** Formula returns multiple values where only one value is expected.
+
+### Root Causes
+
+1. **Missing dimension in block**
+   - Formula aggregates data but block lacks dimension needed for proper grouping
+
+2. **Measure used in wrong context**
+   - Trying to display measure in Detail section
+   - Measure aggregation ambiguous
+
+### Troubleshooting Steps
+
+**Step 1: Identify the problematic variable**
+- Note which cell shows #MULTIVALUE
+- Check the variable formula
+
+**Step 2: Check block dimensions**
+- What dimensions are in the block?
+- What dimensions does the formula reference?
+
+**Step 3: Apply appropriate solution**
+
+### Solution Pattern 1: Add Missing Dimension to Block
+
+**Scenario:** Showing max arrest count per officer, but [Officer ID] not in block.
+
+```webi
+// Variable: var_Max_Arrests_Per_Officer
+// Qualification: Measure
+Max([Arrests])
+
+// Block contains only: [District]
+// Result: #MULTIVALUE (WebI doesn't know which officer's max to show)
+
+// SOLUTION: Add [Officer ID] to block
+// Block now contains: [District], [Officer ID]
+// Result: Shows correctly
+```
+
+### Solution Pattern 2: Use Context Operators
+
+**Scenario:** Want to show district-level max, but officer is in block.
+
+```webi
+// PROBLEM: This gives #MULTIVALUE because [Officer ID] is in block
+// Variable: var_Max_Arrests_By_District
+Max([Arrests])
+
+// SOLUTION 1: Use IN operator to specify exact context
+Max([Arrests]) In ([District])
+
+// SOLUTION 2: Use ForAll to remove officer from context
+Max([Arrests]) ForAll([Officer ID])
+```
+
+### Solution Pattern 3: Change Variable Qualification
+
+**Scenario:** Variable returning single value but qualified as Measure.
+
+```webi
+// Variable: var_Latest_Case_Date
+// Current Qualification: Measure
+// Formula: Max([Incident Date]) In ([Case ID])
+// Result: May cause #MULTIVALUE in some blocks
+
+// SOLUTION: Change qualification to Detail
+// Qualification: Detail
+// Explanation: This formula returns one date per Case ID, not an aggregate
+```
+
+### Police Data Examples
+
+**Example 1: Case Status by District**
+
+```webi
+// Block structure:
+[District] | [Status] | [Case Count]
+
+// Want to add: Latest case date for the district
+// Variable: var_Latest_District_Case_Date
+Max([Case Date])  // This will cause #MULTIVALUE!
+
+// Why? Block has [Status] dimension, so WebI doesn't know if you want:
+// - Latest date across all statuses in district?
+// - Latest date per status in district?
+
+// SOLUTION: Be explicit
+// Latest across all statuses:
+Max([Case Date]) ForAll([Status])
+
+// OR latest per status (no change needed, just clarify intent):
+Max([Case Date])  // This actually works if that's what you want
+```
+
+**Example 2: Officer Performance Summary**
+
+```webi
+// Block structure:
+[Officer Name] | [Total Cases] | [Avg Response Time]
+
+// Want to add: Department average response time for comparison
+// Variable: var_Dept_Avg_Response_Time
+Average([Response Time])  // #MULTIVALUE!
+
+// Why? Formula tries to aggregate across all officers, but block is per-officer
+
+// SOLUTION: Remove officer from context
+Average([Response Time]) ForAll([Officer Name])
+```
+
+### Diagnostic Checklist
+
+- [ ] Is the variable qualification correct? (Dimension/Measure/Detail)
+- [ ] Are all necessary dimensions in the block?
+- [ ] Does the formula need context operators (In, ForEach, ForAll)?
+- [ ] Is this formula trying to show detail-level data in an aggregate context?
+
+---
+
+## 6.2 #COMPUTATION Error
+
+**Description:** WebI cannot determine the correct calculation context for the formula.
+
+### Root Causes
+
+1. **Ambiguous aggregation context**
+   - Formula doesn't specify which dimensions to aggregate on
+   - Required dimensions missing from query or block
+
+2. **Merged dimension issues**
+   - Formula references dimensions from multiple queries
+   - Incompatible contexts
+
+3. **Complex calculation without proper context**
+   - Nested aggregations without explicit context
+
+### Troubleshooting Steps
+
+**Step 1: Check if required dimensions exist**
+- Edit Query → Verify all dimensions referenced in formula are in the query
+
+**Step 2: Verify dimensions in block**
+- Does the block contain the dimensions needed for calculation context?
+
+**Step 3: Make context explicit**
+- Use IN operator to specify exact dimensions
+
+### Solution Pattern 1: Specify Context with IN
+
+**Scenario:** Calculation fails because context is ambiguous.
+
+```webi
+// PROBLEM: This may cause #COMPUTATION
+// Variable: var_Max_Monthly_Arrests
+Max([Arrests])
+
+// If block doesn't have [Month], or has additional dimensions, WebI is confused
+
+// SOLUTION: Explicitly specify dimensions
+Max([Arrests]) In ([Officer ID]; [Month])
+
+// Now WebI knows: "Calculate max arrests for each Officer-Month combination"
+```
+
+### Solution Pattern 2: Add Missing Dimension with ForEach
+
+**Scenario:** Dimension exists in query but not in block, causing #COMPUTATION.
+
+```webi
+// Query has: [District], [Officer ID], [Month], [Arrests]
+// Block has: [Officer ID], [Arrests]
+// Variable: var_District_Total
+Sum([Arrests])  // #COMPUTATION!
+
+// Why? WebI doesn't know how to handle [District] (in query but not in block)
+
+// SOLUTION: Tell WebI to include District in calculation
+Sum([Arrests]) ForEach([District])
+```
+
+### Solution Pattern 3: Fix Merged Dimension Issues
+
+**Scenario:** Formula references dimensions from multiple queries without proper merge.
+
+```webi
+// Query 1: Case data with [Case ID], [District], [Status]
+// Query 2: Officer data with [Officer ID], [District], [Badge Number]
+
+// Variable tries to combine data:
+Sum([Cases]) + Count([Officers])  // #COMPUTATION!
+
+// Why? [District] from Query 1 and [District] from Query 2 are not merged
+
+// SOLUTION:
+// 1. Right-click [District] from Query 1
+// 2. Select "Merge"
+// 3. Choose [District] from Query 2
+// 4. Now formula works with merged dimension
+```
+
+### Police Data Examples
+
+**Example 1: District Response Time Analysis**
+
+```webi
+// Query has: [District], [Priority Level], [Response Time Minutes]
+// Block structure: [District] | [Avg Response Time]
+
+// Want to add: Maximum response time for high-priority calls only
+// Variable: var_Max_High_Priority_Response
+Max([Response Time Minutes]) Where ([Priority Level] >= 7)  // #COMPUTATION!
+
+// Why? [Priority Level] is in query but not in block, and WebI is confused
+
+// SOLUTION 1: Add Priority Level to block (changes report structure)
+// SOLUTION 2: Use explicit context
+Max([Response Time Minutes]) Where ([Priority Level] >= 7) In ([District])
+
+// OR if Priority Level should be considered:
+Max([Response Time Minutes]) Where ([Priority Level] >= 7) In ([District]; [Priority Level])
+```
+
+**Example 2: Cross-Query Officer Case Count**
+
+```webi
+// Query 1: Cases with [Case ID], [Officer ID], [Status]
+// Query 2: Officer details with [Officer ID], [Name], [Badge Number]
+// [Officer ID] is MERGED
+
+// Block structure: [Officer Name] | [Total Cases]
+
+// Variable: var_Open_Cases_Per_Officer
+Count([Case ID]) Where ([Status] = "Open")
+
+// This works IF:
+// 1. [Officer ID] is properly merged
+// 2. Block includes merged [Officer ID] or dimension from same query as [Officer Name]
+
+// If #COMPUTATION occurs:
+// - Verify merge is correct
+// - Use explicit context: Count([Case ID]) Where ([Status] = "Open") In ([Officer ID])
+```
+
+### Diagnostic Checklist
+
+- [ ] Are all dimensions in the formula also in the query?
+- [ ] Does the block contain sufficient dimensions for context?
+- [ ] Are merged dimensions properly configured?
+- [ ] Does the formula use explicit context operators (IN)?
+- [ ] Are there nested aggregations that need clarification?
+
+---
+
+## 6.3 #DIV/0 Error
+
+**Description:** Division by zero in a formula.
+
+### Root Causes
+
+1. **Denominator is zero**
+   - Aggregation results in zero
+   - Data naturally contains zeros
+
+2. **Null values treated as zero**
+   - Null in denominator
+   - Empty aggregation
+
+### Solution Pattern: Always Check Denominator
+
+```webi
+// UNSAFE: This will error when denominator is zero
+[Numerator] / [Denominator]
+
+// SAFE: Check before dividing
+If [Denominator] = 0 Then 0 Else [Numerator] / [Denominator]
+
+// SAFER: Also handle null
+If IsNull([Denominator]) Or [Denominator] = 0
+Then 0
+Else [Numerator] / [Denominator]
+
+// WITH CUSTOM HANDLING: Return null or different value
+If IsNull([Denominator]) Or [Denominator] = 0
+Then Null
+Else [Numerator] / [Denominator]
+```
+
+### Police Data Examples
+
+**Example 1: Case Clearance Rate**
+
+```webi
+// Variable: var_Clearance_Rate
+// Formula: Cases Closed / Total Cases
+// Problem: New district with zero cases → #DIV/0
+
+// SOLUTION:
+If [Total Cases] = 0 Or IsNull([Total Cases])
+Then 0  // Or Null, or "N/A" depending on requirements
+Else ([Cases Closed] / [Total Cases]) * 100
+```
+
+**Example 2: Average Response Time by District**
+
+```webi
+// Variable: var_Avg_Response_Per_Call
+// Formula: Total Response Minutes / Call Count
+// Problem: District with no calls in time period → #DIV/0
+
+// SOLUTION:
+If IsNull([Call Count]) Or [Call Count] = 0
+Then 0
+Else [Total Response Minutes] / [Call Count]
+
+// ALTERNATIVE: Return null to distinguish "no data" from "zero average"
+If IsNull([Call Count]) Or [Call Count] = 0
+Then Null
+Else [Total Response Minutes] / [Call Count]
+```
+
+**Example 3: Percentage Change Calculation**
+
+```webi
+// Variable: var_Month_Over_Month_Change_Pct
+// Formula: ((Current - Previous) / Previous) * 100
+// Problem: Previous month had zero arrests → #DIV/0
+
+// SOLUTION:
+If IsNull(Previous([Arrests])) Or Previous([Arrests]) = 0
+Then 0  // Or Null, or handle specially
+Else (([Arrests] - Previous([Arrests])) / Previous([Arrests])) * 100
+
+// ALTERNATIVE: Show different message
+If IsNull(Previous([Arrests])) Or Previous([Arrests]) = 0
+Then "N/A - No Previous Data"
+Else FormatNumber((([Arrests] - Previous([Arrests])) / Previous([Arrests])) * 100, "0.00") + "%"
+```
+
+### Best Practices
+
+1. **Always check denominator before division**
+2. **Decide on appropriate default:** 0, Null, or text message
+3. **Handle null explicitly** with `IsNull()` check
+4. **Document the logic** - why did you choose 0 vs Null?
+
+---
+
+## 6.4 #INCOMPATIBLE Error
+
+**Description:** Trying to combine incompatible dimensions from different data providers.
+
+### Root Causes
+
+1. **Unmerged dimensions from different queries**
+   - Formula combines dimensions that aren't merged
+   - Block contains dimensions from multiple queries without merge
+
+2. **Incompatible context**
+   - Dimensions exist at different grain levels
+   - Relationship not properly defined
+
+### Solution Pattern 1: Merge Dimensions
+
+**Process:**
+1. Identify the common dimension between queries
+2. Right-click dimension in one query
+3. Select "Merge"
+4. Choose matching dimension from other query
+5. Merged dimension shown with special icon
+
+**Example:**
+```webi
+// Query 1: Cases with [Case ID], [District], [Case Type]
+// Query 2: District info with [District], [District Name], [Population]
+
+// To use both in same block:
+// 1. Right-click [District] from Query 1
+// 2. Merge with [District] from Query 2
+// 3. Now you can create blocks with both queries' data
+```
+
+### Solution Pattern 2: Separate Blocks
+
+**Scenario:** Dimensions cannot be meaningfully merged.
+
+```webi
+// Query 1: Incident-level data (1 row per incident)
+// Query 2: Officer-level data (1 row per officer)
+// No common dimension
+
+// CANNOT merge into single block
+// SOLUTION: Use separate blocks or separate reports
+```
+
+### Police Data Examples
+
+**Example 1: Cases by District with District Demographics**
+
+```webi
+// Query 1: Q_Cases
+// - [District] (e.g., "North", "South", "East", "West")
+// - [Case Count]
+
+// Query 2: Q_District_Info
+// - [District Code] (e.g., "N", "S", "E", "W")
+// - [District Population]
+// - [Officer Count]
+
+// PROBLEM: [District] and [District Code] are different but represent same thing
+
+// SOLUTION 1: Fix at query level (best)
+// - Modify query to use same dimension name/values
+
+// SOLUTION 2: Merge with caution
+// - Merge dimensions
+// - Verify data aligns correctly
+
+// SOLUTION 3: Use separate blocks
+// - One block for cases by district
+// - Another block for district info
+```
+
+**Example 2: Incident Data with Officer Data**
+
+```webi
+// Query 1: Incidents with [Incident ID], [Assigned Officer ID], [Date]
+// Query 2: Officers with [Officer ID], [Officer Name], [Rank]
+
+// Want block showing: [Officer Name], [Incident Count]
+
+// STEP 1: Merge [Assigned Officer ID] from Q1 with [Officer ID] from Q2
+// Right-click [Assigned Officer ID] → Merge → Select [Officer ID]
+
+// STEP 2: Create block
+[Officer Name]  // from Q2
+[Incident ID]  // from Q1, shows count using merged dimension
+
+// This works because merge creates relationship
+```
+
+### Diagnostic Checklist
+
+- [ ] Are you combining data from multiple queries?
+- [ ] Is there a common dimension between the queries?
+- [ ] Have you merged the common dimensions?
+- [ ] Are the merged dimensions at the same grain (level of detail)?
+- [ ] Does the data actually align correctly between queries?
+
+---
+
+## 6.5 #SYNTAX Error
+
+**Description:** Formula contains syntax errors - typos, incorrect function names, or malformed expressions.
+
+### Common Syntax Errors
+
+### Error 1: Misspelled Function Names
+
+```webi
+// WRONG:
+Summ([Arrests])  // Extra 'm'
+Counta([Case ID])  // Should be Count
+Avg([Response Time])  // Should be Average
+
+// CORRECT:
+Sum([Arrests])
+Count([Case ID])
+Average([Response Time])
+```
+
+### Error 2: Missing Parentheses or Brackets
+
+```webi
+// WRONG:
+If [Status] = "Open" Then "Active"  // Missing Else clause
+Sum([Arrests] Where ([District] = "North")  // Missing closing paren
+
+// CORRECT:
+If [Status] = "Open" Then "Active" Else "Closed"
+Sum([Arrests]) Where ([District] = "North")
+```
+
+### Error 3: Incorrect String Delimiters
+
+```webi
+// WRONG:
+If [District] = 'North' Then "Yes"  // Mixed quotes
+If [Status] = North Then "Open"  // Missing quotes
+
+// CORRECT:
+If [District] = "North" Then "Yes"
+If [Status] = "North" Then "Open"
+```
+
+### Error 4: Wrong Operator Syntax
+
+```webi
+// WRONG:
+If [Priority] == 5  // Wrong equality operator
+If [Cases] > 100 && [Status] = "Open"  // Wrong AND operator
+[First Name] & " " & [Last Name]  // Wrong concatenation
+
+// CORRECT:
+If [Priority] = 5
+If [Cases] > 100 And [Status] = "Open"
+[First Name] + " " + [Last Name]
+```
+
+### Error 5: Incorrect Context Operator Syntax
+
+```webi
+// WRONG:
+Max([Arrests]) In [District]  // Missing parentheses
+Sum([Cases]) ForAll [Status]  // Missing parentheses
+Average([Response Time]) Where [Priority] = 5  // Missing parentheses on right side
+
+// CORRECT:
+Max([Arrests]) In ([District])
+Sum([Cases]) ForAll ([Status])
+Average([Response Time]) Where ([Priority] = 5)
+```
+
+### Error 6: Date Format Errors
+
+```webi
+// WRONG:
+ToDate("2024/01/15", "MM-DD-YYYY")  // Format doesn't match string
+FormatDate([Date], "DD-MM-YY")  // Lowercase 'yy' should be uppercase
+
+// CORRECT:
+ToDate("2024/01/15", "yyyy/MM/dd")
+FormatDate([Date], "dd-MM-yyyy")
+```
+
+### Police Data Examples
+
+**Example 1: Officer Name Concatenation**
+
+```webi
+// WRONG:
+[Officer Last Name] & ", " & [Officer First Name]  // Wrong operator
+
+// CORRECT:
+[Officer Last Name] + ", " + [Officer First Name]
+```
+
+**Example 2: Case Priority Logic**
+
+```webi
+// WRONG:
+If [Priority] >= 7 Then "High"  // Missing Else
+If [Priority] >= 7 Then "High" ElseIf [Priority] >= 4 Then "Medium"  // Missing final Else
+
+// CORRECT:
+If [Priority] >= 7 Then "High" Else "Normal"
+If [Priority] >= 7 Then "High" ElseIf [Priority] >= 4 Then "Medium" Else "Low"
+```
+
+**Example 3: Date Filtering**
+
+```webi
+// WRONG:
+[Incident Date] > CurrentDate - 30  // Wrong syntax for date math
+
+// CORRECT:
+[Incident Date] >= RelativeDate(CurrentDate(); -30)
+```
+
+### Debugging Tips
+
+1. **Copy formula to text editor** - easier to spot syntax errors
+2. **Check each function name** against WebI documentation
+3. **Count parentheses and brackets** - ensure they match
+4. **Verify string quotes** - use double quotes consistently
+5. **Test simple version first** - build complexity gradually
+
+---
+
+## 6.6 #DATASYNC Error
+
+**Description:** Data synchronization error when using merged dimensions.
+
+### Root Causes
+
+1. **Merged dimensions have mismatched data**
+   - Values in one query don't exist in other
+   - Different data types or formats
+
+2. **Synchronization setting mismatch**
+   - "Extend merged dimension values" setting
+   - Query synchronization options
+
+### Solution Pattern 1: Check Data Alignment
+
+**Steps:**
+1. Create separate blocks for each query
+2. Verify dimension values match exactly
+3. Check for:
+   - Spelling differences
+   - Extra spaces
+   - Different cases (NORTH vs North)
+   - Different data types (string "123" vs number 123)
+
+### Solution Pattern 2: Adjust Synchronization Settings
+
+**Location:** Report Properties → Data Synchronization
+
+**Options:**
+- **Extend merged dimension values:** Includes all values from all queries (like outer join)
+- **Do not extend:** Only shows matching values (like inner join)
+
+### Police Data Examples
+
+**Example 1: District Mismatch**
+
+```webi
+// Query 1: Cases by District
+Districts: "North", "South", "East", "West"
+
+// Query 2: District Details
+Districts: "NORTH", "SOUTH", "EAST", "WEST"  // ALL CAPS!
+
+// Result: #DATASYNC when trying to merge
+
+// SOLUTION: Fix at query level
+// - Modify Query 2 to use Title Case
+// - OR add transformation: InitCap([District])
+```
+
+**Example 2: Officer ID Format Mismatch**
+
+```webi
+// Query 1: Cases with [Officer ID] as NUMBER (1247, 1248, etc.)
+// Query 2: Officer Info with [Officer ID] as STRING ("1247", "1248", etc.)
+
+// Result: #DATASYNC or no matching data
+
+// SOLUTION: Convert to same type at query level
+// Query 1: Use ToText([Officer ID])
+// OR Query 2: Use ToNumber([Officer ID])
+```
+
+### Diagnostic Checklist
+
+- [ ] Do dimension values match exactly between queries?
+- [ ] Are data types the same?
+- [ ] Are there leading/trailing spaces?
+- [ ] Is capitalization consistent?
+- [ ] Have you checked synchronization settings?
+
+---
+
+## 6.7 Null Value Issues
+
+**Description:** Unexpected results or errors due to null values in data.
+
+### Common Null Problems
+
+### Problem 1: Nulls in Calculations
+
+```webi
+// Expression with null:
+[Field1] + [Field2]  // If either is null, result is null
+
+// SOLUTION: Handle nulls explicitly
+If IsNull([Field1]) Then 0 Else [Field1] +
+If IsNull([Field2]) Then 0 Else [Field2]
+
+// OR more concise:
+If IsNull([Field1]) Then [Field2] Else If IsNull([Field2]) Then [Field1] Else [Field1] + [Field2]
+```
+
+### Problem 2: Nulls in Comparisons
+
+```webi
+// This doesn't match null values:
+If [Status] = "Open" Then "Active" Else "Inactive"
+// Null statuses become "Inactive" - might not be desired
+
+// SOLUTION: Handle null explicitly
+If IsNull([Status]) Then "Unknown"
+ElseIf [Status] = "Open" Then "Active"
+Else "Inactive"
+```
+
+### Problem 3: Nulls in Aggregations
+
+```webi
+// Count includes nulls differently:
+Count([Officer Name])  // Excludes nulls
+Count([Officer Name]; All)  // Includes nulls
+
+// Average ignores nulls:
+Average([Response Time])  // Only averages non-null values
+```
+
+### Police Data Examples
+
+**Example 1: Case Assignment Status**
+
+```webi
+// Variable: var_Assignment_Status
+// Data: [Assigned Officer] can be null for unassigned cases
+
+// PROBLEM: This doesn't identify unassigned cases
+If [Assigned Officer] = "None" Then "Unassigned" Else "Assigned"
+
+// SOLUTION: Check for null
+If IsNull([Assigned Officer]) Then "Unassigned" Else "Assigned"
+```
+
+**Example 2: Response Time Calculation with Nulls**
+
+```webi
+// Variable: var_Response_Time_Minutes
+// Data: [Arrival Time] is null if officers haven't arrived yet
+
+// PROBLEM: This gives null for in-progress calls
+([Arrival Time] - [Dispatch Time]) * 24 * 60
+
+// SOLUTION: Handle null explicitly
+If IsNull([Arrival Time])
+Then "In Progress"
+Else FormatNumber(([Arrival Time] - [Dispatch Time]) * 24 * 60, "#,##0") + " min"
+```
+
+**Example 3: Data Completeness Check**
+
+```webi
+// Variable: var_Missing_Critical_Data
+// Check for any null critical fields
+
+// Formula:
+If IsNull([Location]) Then "Missing Location; " Else "" +
+If IsNull([Incident Type]) Then "Missing Type; " Else "" +
+If IsNull([Priority Level]) Then "Missing Priority; " Else ""
+
+// Result: Lists all missing fields, or empty string if complete
+```
+
+### Best Practices
+
+1. **Always consider null possibility** in formulas
+2. **Use IsNull() function** to explicitly check
+3. **Decide on null handling strategy:** Convert to 0, default text, or preserve null
+4. **Document null behavior** in variable descriptions
+
+---
+
+## 6.8 Performance Issues
+
+**Description:** Report runs slowly, times out, or crashes.
+
+### Diagnostic Questions
+
+1. **How much data?** Rows in result set
+2. **How many queries?** Multiple queries slower
+3. **Are filters at query or report level?** Query is faster
+4. **How many formulas?** Complex calculations slow things down
+5. **Are you merging dimensions?** Merging is expensive
+
+### Solution Pattern 1: Move Filters to Query Level
+
+```webi
+// SLOW: Report-level filter
+// Report Filter: [District] = "North"
+// Problem: Fetches all districts, then filters in WebI
+
+// FAST: Query-level filter
+// Edit Query → Query Filters → [District] = "North"
+// Problem solved: Only fetches North district from database
+
+// Performance improvement: 10-100x faster for large datasets
+```
+
+### Solution Pattern 2: Optimize Scope of Analysis
+
+```webi
+// SLOW: Full scope of analysis
+// Query Properties → Scope of Analysis → "All dimensions"
+// Problem: Fetches extra data for drilling that may not be needed
+
+// FAST: Limited scope
+// Query Properties → Scope of Analysis → "None" (if no drilling needed)
+// OR "One Level" (if minimal drilling needed)
+
+// Performance improvement: 20-50% faster, smaller result set
+```
+
+### Solution Pattern 3: Remove Unused Objects
+
+**Process:**
+1. Edit Query
+2. Remove any objects not used in report
+3. Minimize number of dimensions
+4. Only include needed measures
+
+```webi
+// BEFORE: Query has 50 columns, report uses 10
+// AFTER: Query has 10 columns, report uses 10
+// Performance improvement: Faster query, less memory
+```
+
+### Solution Pattern 4: Simplify Complex Formulas
+
+```webi
+// SLOW: Nested complex formula calculated in WebI
+If [Field1] > (Average([Field2]) * 1.5) And [Field3] In (
+  SELECT DISTINCT...
+)
+
+// FASTER: Move complexity to database
+// Create database view or modify universe
+// Pull pre-calculated flags or simplified values
+```
+
+### Solution Pattern 5: Limit Merged Dimensions
+
+```webi
+// SLOW: 5 merged dimensions across 3 queries
+// Problem: Merging requires expensive join operations in WebI
+
+// FASTER: Minimize merges
+// - Combine queries at database level if possible
+// - Use single query with proper joins
+// - Only merge when absolutely necessary
+```
+
+### Police Data Examples
+
+**Example 1: District Crime Report**
+
+```webi
+// SLOW VERSION:
+// - Query fetches all 100,000 incidents from last year
+// - Report filter: [Incident Date] >= RelativeDate(CurrentDate(); -30)
+// - Report filter: [District] = "North"
+// Problem: Fetches 100,000 rows, filters to 2,000 in WebI
+
+// FAST VERSION:
+// - Query filters:
+//   - [Incident Date] >= RelativeDate(CurrentDate(); -30)
+//   - [District] = "North"
+// - No report filters needed
+// Problem solved: Fetches only 2,000 rows from database
+
+// Performance: 50x faster
+```
+
+**Example 2: Officer Performance Dashboard**
+
+```webi
+// SLOW VERSION:
+// - 3 separate queries: Cases, Officers, Districts
+// - Merged dimensions: [Officer ID], [District]
+// - 50 complex variables with nested aggregations
+// - Full scope of analysis on all dimensions
+
+// FAST VERSION:
+// - 1 query with proper joins at database level
+// - Minimal variables, complex calculations done in database
+// - Scope of analysis: "None" (no drilling needed)
+// - Query filters for date range
+
+// Performance: 10x faster, more stable
+```
+
+### Performance Troubleshooting Checklist
+
+- [ ] Are filters at query level (not report level)?
+- [ ] Is scope of analysis minimized?
+- [ ] Have you removed unused query objects?
+- [ ] Are merged dimensions minimized?
+- [ ] Are complex calculations really necessary in WebI?
+- [ ] Is the database properly indexed?
+- [ ] Could you use an aggregated table instead?
+- [ ] Have you tested with smaller date range first?
+
+---
+
+## 6.9 General Troubleshooting Workflow
+
+**Step-by-Step Process for Any WebI Error:**
+
+### Step 1: Identify the Error
+
+- Note exact error message (#MULTIVALUE, #DIV/0, etc.)
+- Identify which cell/variable shows the error
+- Check if error appears in all blocks or specific ones
+
+### Step 2: Isolate the Problem
+
+**Test the variable alone:**
+1. Create new simple block
+2. Add just one dimension
+3. Add the problematic variable
+4. Does error still occur?
+
+**Test components:**
+1. If variable uses other variables, test those individually
+2. Simplify formula - remove parts until it works
+3. Identify which part causes the error
+
+### Step 3: Check Context
+
+**For aggregation errors (#MULTIVALUE, #COMPUTATION):**
+- [ ] What dimensions are in the block?
+- [ ] What dimensions does the formula reference?
+- [ ] Is there a mismatch?
+
+**For data errors (#DATASYNC, #INCOMPATIBLE):**
+- [ ] Are you using multiple queries?
+- [ ] Are dimensions merged?
+- [ ] Do values match between queries?
+
+### Step 4: Apply Solution
+
+Based on error type, apply appropriate solution from sections 6.1-6.8.
+
+### Step 5: Test Thoroughly
+
+- Test in multiple blocks
+- Test with different filters
+- Test edge cases (nulls, zeros, empty results)
+- Test with different date ranges
+
+### Step 6: Document
+
+Add comments to variable formulas explaining:
+- What the formula does
+- Why specific handling is needed (e.g., "Check for null to avoid #DIV/0")
+- Any assumptions or limitations
+
+---
+
+## 6.10 Error Prevention Best Practices
+
+### Practice 1: Always Handle Edge Cases
+
+```webi
+// When writing formulas, always consider:
+// - What if denominator is zero?
+// - What if field is null?
+// - What if no data matches filter?
+// - What if date range returns empty results?
+
+// EXAMPLE: Safe percentage calculation
+If IsNull([Total]) Or [Total] = 0
+Then 0
+Else If IsNull([Count]) Then 0 Else ([Count] / [Total]) * 100
+```
+
+### Practice 2: Use Explicit Context
+
+```webi
+// Instead of relying on default context:
+Max([Revenue])  // Ambiguous
+
+// Always specify:
+Max([Revenue]) In ([District]; [Month])  // Clear intent
+```
+
+### Practice 3: Test Incrementally
+
+```webi
+// Don't write complex formulas all at once:
+If IsNull([Field1]) Or [Field1] = 0 Then 0 Else (([Field2] * [Field3]) / [Field1]) * 100 + [Field4]
+
+// Build step by step:
+// Step 1: Test [Field2] * [Field3]
+// Step 2: Test division with null/zero check
+// Step 3: Add percentage conversion
+// Step 4: Add [Field4]
+```
+
+### Practice 4: Use Helper Variables
+
+```webi
+// Instead of one massive formula:
+// Variable: var_Complex_Result
+If IsNull([A]) Or [A] = 0 Then 0 Else (([B] + [C] - [D]) / [A]) * 100
+
+// Break into helper variables:
+// Variable: var_Sum_BCD
+[B] + [C] - [D]
+
+// Variable: var_Safe_Ratio
+If IsNull([A]) Or [A] = 0 Then 0 Else [var_Sum_BCD] / [A]
+
+// Variable: var_Complex_Result
+[var_Safe_Ratio] * 100
+
+// Easier to debug, test, and maintain
+```
+
+### Practice 5: Document Assumptions
+
+```webi
+// Variable: var_Case_Clearance_Rate
+// Formula: ([Cases Closed] / [Total Cases]) * 100
+// NOTES:
+// - Returns 0 if Total Cases is 0 or null (new districts)
+// - Only counts cases with Status = "Closed" or "Cleared"
+// - Excludes transferred cases (counted in receiving district)
+```
+
+---
+
 
 
